@@ -1,0 +1,8 @@
+{
+  "_comment": "NSE TRADING holidays (not bank holidays). VERIFY against the official NSE holiday circular for the current year before first live run — placeholder entries below MUST be replaced.",
+  "2026": [
+    "2026-01-26",
+    "2026-08-15",
+    "2026-10-02"
+  ]
+}

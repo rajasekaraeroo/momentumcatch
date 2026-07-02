@@ -1,0 +1,23 @@
+# Instrument universe — resolved daily at 08:45 IST from the Upstox
+# instruments master (SPEC §2, §12.3).
+underlyings:
+  - symbol: NIFTY
+    indexInstrumentKey: "NSE_INDEX|Nifty 50"
+    strikeStep: 50
+    atmRange: 10          # ATM ± N strikes, CE & PE, nearest weekly expiry
+  - symbol: BANKNIFTY
+    indexInstrumentKey: "NSE_INDEX|Nifty Bank"
+    strikeStep: 100
+    atmRange: 10
+
+expiry:
+  select: nearest_weekly
+  rollCutoffIst: "15:00"   # on expiry day, roll universe after this time
+
+recentering:
+  driftStrikesThreshold: 3   # re-center subscriptions if spot drifts > N strikes
+
+schedule:
+  connectIst: "09:00"
+  disconnectIst: "15:35"
+  holidaysFile: config/holidays.json

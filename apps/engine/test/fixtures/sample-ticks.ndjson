@@ -1,0 +1,32 @@
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877800000,"ltp":104.8,"ltq":75,"volume":12214,"oi":501200,"bidPrice":104.65,"bidQty":900,"askPrice":104.95,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877801000,"ltp":106,"ltq":75,"volume":12460,"oi":502400,"bidPrice":105.85,"bidQty":900,"askPrice":106.15,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877802000,"ltp":107.5,"ltq":75,"volume":12730,"oi":503600,"bidPrice":107.35,"bidQty":900,"askPrice":107.65,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877803000,"ltp":109.6,"ltq":75,"volume":13048,"oi":504800,"bidPrice":109.45,"bidQty":900,"askPrice":109.75,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877804000,"ltp":112,"ltq":75,"volume":13390,"oi":506000,"bidPrice":111.85,"bidQty":900,"askPrice":112.15,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877805000,"ltp":113.9,"ltq":75,"volume":13692,"oi":507200,"bidPrice":113.75,"bidQty":900,"askPrice":114.05,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877806000,"ltp":115,"ltq":75,"volume":13930,"oi":508400,"bidPrice":114.85,"bidQty":900,"askPrice":115.15,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877807000,"ltp":115.6,"ltq":75,"volume":14128,"oi":509600,"bidPrice":115.45,"bidQty":900,"askPrice":115.75,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877807000,"ltp":115.6,"ltq":75,"volume":14128,"oi":509600,"bidPrice":115.45,"bidQty":900,"askPrice":115.75,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877808000,"ltp":115.8,"ltq":75,"volume":14294,"oi":510800,"bidPrice":115.65,"bidQty":900,"askPrice":115.95,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877809000,"ltp":115.5,"ltq":75,"volume":14468,"oi":512000,"bidPrice":115.35,"bidQty":900,"askPrice":115.65,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877810000,"ltp":114.6,"ltq":75,"volume":14690,"oi":511100,"bidPrice":114.45,"bidQty":900,"askPrice":114.75,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877811000,"ltp":113.2,"ltq":75,"volume":14952,"oi":510200,"bidPrice":113.05,"bidQty":900,"askPrice":113.35,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877812000,"ltp":112.1,"ltq":75,"volume":15190,"oi":509300,"bidPrice":111.95,"bidQty":900,"askPrice":112.25,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877813000,"ltp":111.4,"ltq":75,"volume":15396,"oi":508400,"bidPrice":111.25,"bidQty":900,"askPrice":111.55,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877814000,"ltp":111,"ltq":75,"volume":15578,"oi":507500,"bidPrice":110.85,"bidQty":900,"askPrice":111.15,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877815000,"ltp":110.8,"ltq":75,"volume":15744,"oi":506600,"bidPrice":110.65,"bidQty":900,"askPrice":110.95,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877816000,"ltp":110.9,"ltq":75,"volume":15902,"oi":505700,"bidPrice":110.75,"bidQty":900,"askPrice":111.05,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877817000,"ltp":110.4,"ltq":75,"volume":16092,"oi":504800,"bidPrice":110.25,"bidQty":900,"askPrice":110.55,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877818000,"ltp":109.6,"ltq":75,"volume":16306,"oi":503900,"bidPrice":109.45,"bidQty":900,"askPrice":109.75,"askQty":850}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877819000,"ltp":109,"ltq":75,"volume":16504,"oi":503000,"bidPrice":108.85,"bidQty":900,"askPrice":109.15,"askQty":850}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877800000,"ltp":24816.5}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877802000,"ltp":24823}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877804000,"ltp":24829.5}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877806000,"ltp":24836}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877808000,"ltp":24842.5}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877810000,"ltp":24838.3}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877812000,"ltp":24834.1}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877814000,"ltp":24829.9}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877816000,"ltp":24825.7}
+{"instrumentKey":"SYNTH_INDEX|Sample 50","ts":1782877818000,"ltp":24821.5}
+{"instrumentKey":"SYNTH_FO|SAMPLE_CE","ts":1782877814000,"ltp":108.2,"ltq":25,"volume":16604,"oi":503000}

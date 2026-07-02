@@ -1,0 +1,39 @@
+# 1-minute backtest variant (SPEC §13.2). Same indicator math, re-windowed.
+# flowImbalance / spread / IV components are EXCLUDED at this resolution;
+# weights are renormalized over the remaining components.
+windows:
+  fastCandles: 1
+  slowCandles: 3
+  oiCandles: 3
+  baselineCandles: 30
+  warmupCandles: 30
+
+weights:
+  velocity: 0.44             # 0.35/0.80
+  acceleration: 0.19         # 0.15/0.80
+  volumeBurst: 0.37          # 0.30/0.80
+
+liquidityGate:
+  minCandleVolume: 500       # static gate replacing live spread penalty
+
+emission:
+  scoreThreshold: 70         # sweep: 60,65,70,75,80
+  rearmBelow: 50
+  cooldownCandles: 3
+
+lifecycle:
+  accelReversalCandlesFull: 3
+  stallBudgetCandles: 4
+  peakConfirmCandles: 2
+  # remaining lifecycle params inherit from momentum.yaml semantics
+
+download:
+  atmRange: 6                # ATM ± 6 per session (bounds data volume)
+  requestsPerSecond: 2
+  interval: 1minute
+
+evaluation:
+  horizonsMin: [1, 3, 5, 10, 15]
+  mfeMaeK: [1, 2]
+  tuneMonths: 9              # holdout = remaining months, single final run
+  randomBaselinePerEvent: 5

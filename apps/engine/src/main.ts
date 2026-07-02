@@ -1,0 +1,23 @@
+import "reflect-metadata";
+import "dotenv/config";
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { envSchema } from "./config/schema";
+import { createLogger, PinoNestLogger } from "./logger";
+
+async function bootstrap(): Promise<void> {
+  const log = createLogger("main");
+  const app = await NestFactory.create(AppModule, {
+    logger: new PinoNestLogger(),
+  });
+  app.enableShutdownHooks();
+  const port = envSchema.parse(process.env).ENGINE_PORT;
+  await app.listen(port);
+  log.info({ port }, "engine listening");
+}
+
+bootstrap().catch((err) => {
+  // Fail fast (CLAUDE.md): invalid config or boot errors kill the process.
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});

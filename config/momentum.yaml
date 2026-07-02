@@ -1,0 +1,48 @@
+# Live tick-engine momentum configuration (SPEC §5).
+windows:
+  fastSec: 5
+  slowSec: 30
+  oiSec: 60
+  baselineSec: 300
+  openExclusionSec: 300      # first 5 min excluded from baselines
+
+weights:                     # renormalized if a component is unavailable
+  velocity: 0.35
+  acceleration: 0.15
+  volumeBurst: 0.30
+  flowImbalance: 0.20
+
+caps:
+  volumeBurstZ: 6
+
+underlyingConfirmation:
+  min: 0.5
+  max: 1.5
+
+liquidityGate:
+  minVol5s: 50               # contracts; tune per underlying
+  maxSpreadPct: 1.5          # of premium
+
+emission:
+  scoreThreshold: 70
+  rearmBelow: 50
+  cooldownSec: 60
+
+lifecycle:                   # SPEC §14
+  decayWeights:
+    accelerationReversal: 0.25
+    volumeFade: 0.20
+    extremeStall: 0.20
+    pullbackDepth: 0.15
+    flowFlip: 0.10
+    underlyingDivergence: 0.10
+  accelReversalStepsFull: 5
+  volumeFadeFloorRatio: 0.3
+  stallBudgetSec: 45
+  pullbackAtrK: 1.5
+  peakConfirmSteps: 10
+  fadingAt: 50
+  reigniteBelow: 30
+  deadAt: 75
+  deadScoreFloor: 35
+  maxEpisodeSec: 900

@@ -1,0 +1,19 @@
+# Secrets — never commit (CLAUDE.md hard rule 4)
+.env
+.env.*
+!.env.example
+
+# Dependencies / build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Runtime data
+data/
+reports/
+logs/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

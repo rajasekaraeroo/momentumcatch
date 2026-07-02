@@ -1,0 +1,18 @@
+{
+  "name": "momentum-scan",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Descriptive momentum detection for NSE options (Upstox V3 feed). Analytics only — no order placement, no trade recommendations.",
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./apps/* dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test && bash scripts/compliance-check.sh",
+    "lint": "pnpm -r lint",
+    "backtest": "pnpm --filter engine backtest",
+    "backtest:download": "pnpm --filter engine backtest:download",
+    "engine:replay": "pnpm --filter engine replay",
+    "compliance": "bash scripts/compliance-check.sh"
+  },
+  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@9.0.0"
+}

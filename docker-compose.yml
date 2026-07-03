@@ -1,5 +1,7 @@
-# Dev infrastructure. App services (engine/web) are added at SPEC §11 stage 5+
-# once Dockerfiles exist; until then run them with `pnpm dev`.
+# One-command MomentumScan:  docker compose up -d --build
+# Runs everything — engine (:3001), dashboard (:3000), PostgreSQL, Redis.
+# Only Docker Desktop is required on the machine; Node/pnpm/Git are only
+# needed for development. Credentials come from .env (see .env.example).
 services:
   postgres:
     image: postgres:16-alpine
@@ -27,6 +29,44 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  engine:
+    build:
+      context: .
+      dockerfile: apps/engine/Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      # inside the compose network the databases are reachable by service
+      # name, not localhost — these override whatever .env says
+      DATABASE_URL: postgresql://momentum:momentum@postgres:5432/momentumscan
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    volumes:
+      # persist on the host: edited configs, the downloaded proto contract,
+      # recorded ticks (Track B) and backtest reports
+      - ./config:/app/config
+      - ./packages/shared/proto:/app/packages/shared/proto
+      - ./data:/app/data
+      - ./reports:/app/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - engine
+    restart: unless-stopped
 
 volumes:
   pgdata:

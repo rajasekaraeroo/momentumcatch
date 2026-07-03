@@ -37,9 +37,19 @@ scripts/                Compliance check and utilities
 
 ## Quick start
 
+Docker-only (no Node/pnpm needed — see `docs/SETUP-GUIDE.md` for the
+beginner walkthrough):
+
 ```bash
 cp .env.example .env        # fill in Upstox credentials
-docker compose up -d        # postgres + redis
+docker compose up -d --build   # postgres + redis + engine :3001 + web :3000
+```
+
+Or for development:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres redis
 pnpm install
 pnpm dev                    # engine :3001, web :3000
 ```

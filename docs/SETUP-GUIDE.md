@@ -25,6 +25,53 @@ right-click (Windows) or Cmd+V (Mac) to paste, press Enter.
 
 ---
 
+## THE EASY PATH (recommended) — only Docker needed
+
+Since this guide was first written, the project gained a one-command Docker
+package. If you follow this section you can SKIP Parts 1, 2, 4b, 4d and 5
+below — you install exactly one thing.
+
+### E1. Install Docker Desktop (one time)
+https://www.docker.com/products/docker-desktop → download → install →
+open it and leave it running (whale icon). On Windows, say yes if it asks
+to enable "WSL 2".
+
+### E2. Download the project as a ZIP (one time — no Git needed)
+Open this link in your browser; it downloads a zip of the code:
+
+  https://github.com/rajasekaraeroo/momentumcatch/archive/refs/heads/claude/work-session-v1g250.zip
+
+Right-click the downloaded file → "Extract All" → put the folder on your
+Desktop. Inside it you'll find files like `start-momentumscan.bat`.
+
+### E3. Add your Upstox keys (one time)
+Do **Part 3** below (create the Upstox app, redirect URL exactly
+`http://localhost:3001/auth/upstox/callback`). Then, on Windows,
+double-click **start-momentumscan.bat** — the first time, it creates a
+settings file and opens it in Notepad for you. Paste your API key and
+secret after the `=` signs, save, close.
+(Mac: copy `.env.example` to `.env` and edit it, as in Part 4a.)
+
+### E4. Fix the holiday list (one time)
+Do **Part 4c** below (edit `config/holidays.json`).
+
+### E5. Start it (and every trading morning after)
+1. Make sure Docker Desktop is running.
+2. **Windows**: double-click `start-momentumscan.bat`.
+   **Mac**: in a terminal, `cd` into the folder and run
+   `docker compose up -d --build`, then open http://localhost:3000
+3. The FIRST start builds everything and takes 5–10 minutes; after that
+   it starts in seconds. The feed-decoding file (Part 4b) downloads
+   itself automatically on first start.
+4. Do the morning Upstox login when the yellow banner appears (Part 5
+   step 4). To stop in the evening: double-click `stop-momentumscan.bat`
+   (or `docker compose down`).
+
+Everything below is the original "developer path" — useful if you ever
+want to change the code, and for reference.
+
+---
+
 ## Part 1 — Install the four tools (one time)
 
 ### 1. Git (downloads code)

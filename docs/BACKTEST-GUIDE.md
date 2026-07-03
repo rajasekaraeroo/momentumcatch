@@ -204,6 +204,28 @@ Repeat Steps 3–7, but everywhere you see `NIFTY` type `BANKNIFTY` instead
 
 ---
 
+---
+
+## Common problem: "port is already allocated" (port 5432)
+
+If `docker compose up -d` shows an error like:
+
+> Bind for 0.0.0.0:5432 failed: port is already allocated
+
+it means another PostgreSQL already on your PC is using port 5432. Fix
+(one line):
+
+1. In the MomentumScan folder, open **docker-compose.yml** in Notepad.
+2. Find the line `- "5432:5432"` (under `postgres:`).
+3. Change it to `- "5433:5432"` and **save**.
+4. Back in the command window, run `docker compose up -d` again.
+
+This moves our database to port 5433; the app is unaffected because it
+talks to the database over Docker's internal network, not that port. (New
+downloads of the project already have this fix.)
+
+---
+
 ## The one caution
 
 This report describes what **followed** the flagged moments at 1-minute

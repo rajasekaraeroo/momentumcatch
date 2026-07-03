@@ -10,7 +10,10 @@ services:
       POSTGRES_PASSWORD: momentum
       POSTGRES_DB: momentumscan
     ports:
-      - "5432:5432"
+      # host port 5433 (not 5432) to avoid colliding with a PostgreSQL that
+      # is already installed on the machine; the app talks to the DB over the
+      # internal compose network, so this host port is only for convenience
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

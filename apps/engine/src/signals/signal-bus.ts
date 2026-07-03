@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common";
 import type {
   LifecycleTransition,
   MomentumEvent,
-  MomentumSnapshot,
+  SnapshotResult,
 } from "@momentum-scan/shared";
 
 /**
@@ -14,10 +14,10 @@ import type {
 export class SignalBus {
   private readonly emitter = new EventEmitter().setMaxListeners(50);
 
-  emitSnapshot(s: MomentumSnapshot): void {
+  emitSnapshot(s: SnapshotResult): void {
     this.emitter.emit("snapshot", s);
   }
-  onSnapshot(cb: (s: MomentumSnapshot) => void): void {
+  onSnapshot(cb: (s: SnapshotResult) => void): void {
     this.emitter.on("snapshot", cb);
   }
 

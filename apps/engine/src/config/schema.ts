@@ -76,6 +76,7 @@ export const momentumConfigSchema = z.object({
     accelReversalStepsFull: z.number().int().positive(),
     volumeFadeFloorRatio: z.number().positive(),
     stallBudgetSec: z.number().positive(),
+    flowFlipStepsFull: z.number().int().positive(),
     pullbackAtrK: z.number().positive(),
     peakConfirmSteps: z.number().int().positive(),
     fadingAt: z.number().min(0).max(100),

@@ -3,6 +3,7 @@ import { AuthModule } from "./auth/auth.module";
 import { AppConfigModule } from "./config/config.module";
 import { FeedModule } from "./feed/feed.module";
 import { HealthModule } from "./health/health.module";
+import { LifecycleModule } from "./lifecycle/lifecycle.module";
 import { MomentumModule } from "./momentum/momentum.module";
 import { RedisModule } from "./redis/redis.module";
 import { SignalsModule } from "./signals/signals.module";
@@ -19,6 +20,7 @@ import { UniverseModule } from "./universe/universe.module";
     AuthModule,
     FeedModule,
     MomentumModule,
+    LifecycleModule,
     HealthModule,
   ],
 })

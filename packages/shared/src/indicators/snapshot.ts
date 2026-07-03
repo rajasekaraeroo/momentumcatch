@@ -1,4 +1,5 @@
 import type { Bar, ComponentEvidence, Direction, MomentumSnapshot } from "../types";
+import { atr } from "./atr";
 import {
   acceleration,
   classify,
@@ -47,6 +48,10 @@ export interface SnapshotInput {
 export interface SnapshotResult extends MomentumSnapshot {
   liquidityOk: boolean;
   spreadPct?: number;
+  /** extras consumed by the §14 lifecycle engine */
+  premium: number;
+  fastWindowVol: number;
+  atr: number;
 }
 
 export function computeSnapshot(
@@ -132,5 +137,8 @@ export function computeSnapshot(
     underlyingConfirmation: confirmation,
     liquidityOk,
     spreadPct,
+    premium: lastBar?.c ?? 0,
+    fastWindowVol: fastVol,
+    atr: atr(bars, 30),
   };
 }

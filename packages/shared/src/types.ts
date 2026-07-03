@@ -115,7 +115,7 @@ export interface Episode {
   direction: Direction;
   openedAt: number;
   state: EpisodeState;
-  ignition: { score: number; windowVol: number; velocity: number };
+  ignition: { score: number; windowVol: number; velocity: number; premium: number };
   peak: { score: number; premiumExtreme: number; ts: number };
   decayScore: number; // 0–100
   decayEvidence: DecayEvidence;

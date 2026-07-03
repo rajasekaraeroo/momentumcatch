@@ -43,6 +43,7 @@ lifecycle:                   # SPEC §14
   accelReversalStepsFull: 5
   volumeFadeFloorRatio: 0.3
   stallBudgetSec: 45
+  flowFlipStepsFull: 10   # §14.2.5 opposite-flow steps for full flow-flip score
   pullbackAtrK: 1.5
   peakConfirmSteps: 10
   fadingAt: 50

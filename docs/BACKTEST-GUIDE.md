@@ -206,6 +206,22 @@ Repeat Steps 3–7, but everywhere you see `NIFTY` type `BANKNIFTY` instead
 
 ---
 
+## Common problem: "relation bar_1m_hist does not exist"
+
+This means the database tables weren't created yet (it can happen if the
+engine started before the database was ready — e.g. right after fixing the
+port problem above). Fix:
+
+1. In the command window, run: `docker compose restart engine`
+2. Wait about 10 seconds.
+3. Check the tables exist:
+   `docker compose exec postgres psql -U momentum -d momentumscan -c "\dt"`
+   You should see a list of ~11 tables including `bar_1m_hist`.
+4. Run the Step 3 download command again.
+
+(New downloads of the project already have a fix that creates the tables
+automatically.)
+
 ## Common problem: "port is already allocated" (port 5432)
 
 If `docker compose up -d` shows an error like:

@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import Redis from "ioredis";
 import { AppConfigService } from "../config/config.service";
 import { loadBacktestConfig } from "../backtest/config";
-import { createPool } from "../db/db.module";
+import { createPool, runMigrations } from "../db/db.module";
 import { createLogger } from "../logger";
 import { toIst } from "../feed/market-hours";
 import { HistStore } from "./hist-store";
@@ -46,6 +46,9 @@ async function main(): Promise<void> {
     );
   }
   const pool = createPool(config.env.DATABASE_URL);
+  // create the schema if the engine hasn't already (idempotent — a no-op
+  // when the tables exist), so the downloader works even on a fresh DB
+  await runMigrations(pool, `${config.repoRoot}/apps/engine`);
   const store = new HistStore(pool);
   const api = new UpstoxHistClient(token, bt.download.requestsPerSecond);
 

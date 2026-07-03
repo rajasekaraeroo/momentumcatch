@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { PersistenceModule } from "../persistence/persistence.module";
 import type Redis from "ioredis";
 import { AppConfigService } from "../config/config.service";
 import { REDIS } from "../redis/redis.module";
@@ -7,6 +8,7 @@ import { BAR_STORE, RedisBarStore } from "./bar-store";
 import { MomentumService } from "./momentum.service";
 
 @Module({
+  imports: [PersistenceModule],
   providers: [
     {
       provide: BAR_STORE,

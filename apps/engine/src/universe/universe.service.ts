@@ -50,6 +50,20 @@ export class UniverseService {
     for (const u of config.universe.underlyings) {
       registry.registerIndex(u.indexInstrumentKey, u.symbol);
     }
+    // test-only synthetic registrations (schema.ts SYNTH_OPTION_KEYS)
+    for (const spec of config.env.SYNTH_OPTION_KEYS.split(",").filter(Boolean)) {
+      const [key, side, underlyingKey] = spec.split("=");
+      if (!key || !side || !underlyingKey) continue;
+      registry.registerIndex(underlyingKey, "SYNTH");
+      registry.registerOption(key, {
+        side: side === "PE" ? -1 : 1,
+        underlyingKey,
+        underlying: "SYNTH",
+        strike: 0,
+        expiry: "2099-01-01",
+      });
+      this.log.warn({ key }, "synthetic option registered (test-only)");
+    }
   }
 
   /** current option keys across all underlyings (for resubscribe-on-reconnect) */

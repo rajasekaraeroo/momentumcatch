@@ -28,6 +28,13 @@ export class SignalBus {
     this.emitter.on("event", cb);
   }
 
+  emitFeedState(state: string, detail?: Record<string, unknown>): void {
+    this.emitter.emit("feedState", state, detail);
+  }
+  onFeedState(cb: (state: string, detail?: Record<string, unknown>) => void): void {
+    this.emitter.on("feedState", cb);
+  }
+
   emitLifecycle(t: LifecycleTransition): void {
     this.emitter.emit("lifecycle", t);
   }

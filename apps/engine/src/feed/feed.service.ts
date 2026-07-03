@@ -13,6 +13,7 @@ import { FeedState } from "./feed-state";
 import { isWithinFeedWindow } from "./market-hours";
 import { FeedMetrics } from "./metrics";
 import { loadFeedDecoder, type FeedDecoder } from "./proto";
+import { SignalBus } from "../signals/signal-bus";
 import { TICK_STREAM, type TickStreamBus } from "../streams/tick-stream";
 import { InstrumentRegistry } from "../universe/instrument-registry";
 import { UniverseService } from "../universe/universe.service";
@@ -58,6 +59,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     @Inject(TICK_STREAM) private readonly bus: TickStreamBus,
     @Inject(UniverseService) private readonly universe: UniverseService,
     @Inject(InstrumentRegistry) private readonly registry: InstrumentRegistry,
+    @Inject(SignalBus) private readonly signals: SignalBus,
   ) {
     this.instrumentKeys = config.env.FEED_KEYS
       ? config.env.FEED_KEYS.split(",").map((k) => k.trim()).filter(Boolean)
@@ -179,6 +181,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
   private setState(state: FeedState): void {
     if (state === this.state) return;
     this.log.info({ from: this.state, to: state }, "feed state change");
+    this.signals.emitFeedState(state, { from: this.state });
     const recovering =
       state === FeedState.LIVE &&
       (this.state === FeedState.RECONNECTING ||

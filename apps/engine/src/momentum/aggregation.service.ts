@@ -8,6 +8,7 @@ import { AppConfigService } from "../config/config.service";
 import { hotKeyTtlSec } from "../feed/market-hours";
 import { createLogger } from "../logger";
 import { TICK_STREAM, type TickStreamBus } from "../streams/tick-stream";
+import { PersistenceService } from "../persistence/persistence.service";
 import { InstrumentRegistry } from "../universe/instrument-registry";
 import { Aggregator } from "./aggregator";
 import { BAR_STORE, type BarStore } from "./bar-store";
@@ -51,6 +52,7 @@ export class AggregationService
     @Inject(BAR_STORE) private readonly store: BarStore,
     @Inject(MomentumService) private readonly momentum: MomentumService,
     @Inject(InstrumentRegistry) private readonly registry: InstrumentRegistry,
+    @Inject(PersistenceService) private readonly persistence: PersistenceService,
   ) {
     this.aggregator = new Aggregator({
       baselineWindow: config.momentum.windows.baselineSec,
@@ -128,6 +130,7 @@ export class AggregationService
         await this.store.save(key, bars, baseline, ttl);
         // hand the closed bars to the scoring engine (SPEC §5)
         this.momentum.onBars(key, bars, baseline);
+        this.persistence.bufferBars(bars);
       }
     } catch (err) {
       this.log.error({ err: (err as Error).message }, "aggregation run failed");

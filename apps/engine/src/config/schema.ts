@@ -121,5 +121,8 @@ export const envSchema = z.object({
     .transform((v) => v === "true"),
   /** dev/test override of subscription keys (comma-separated) */
   FEED_KEYS: z.string().default(""),
+  /** test-only: register synthetic options "key=CE|PE=underlyingIndexKey,..."
+   *  so replay/injected streams exercise the full momentum pipeline */
+  SYNTH_OPTION_KEYS: z.string().default(""),
 });
 export type EnvConfig = z.infer<typeof envSchema>;

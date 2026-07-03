@@ -102,7 +102,6 @@ export function DrillDown({
       score.remove();
       charts.current = {};
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instrumentKey]);
 
   // stream live updates into the series

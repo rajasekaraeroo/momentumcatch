@@ -17,3 +17,6 @@ logs/
 .DS_Store
 .idea/
 .vscode/
+
+# Next.js build output
+.next/

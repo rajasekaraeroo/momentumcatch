@@ -206,6 +206,31 @@ Repeat Steps 3–7, but everywhere you see `NIFTY` type `BANKNIFTY` instead
 
 ---
 
+## Running on a SECOND computer (e.g. home laptop)
+
+Your downloaded data lives in the database on the FIRST computer — it does
+not travel with you. On a second machine the database starts empty, so the
+simplest path is to re-download there (it's quick and unattended).
+
+Do this on the second computer:
+
+1. **Get the latest code** (has all the fixes): download a fresh ZIP —
+   https://github.com/rajasekaraeroo/momentumcatch/archive/refs/heads/claude/work-session-v1g250.zip
+   — Extract All, and work inside that fresh folder.
+2. **Open a command window there** (File Explorer address bar → type
+   `powershell` → Enter).
+3. **Create the settings file:** `copy .env.example .env` then
+   `notepad .env` — paste your SAME Upstox API Key + Secret (the Upstox app
+   works on any computer), save, close.
+4. **Build and start:** `docker compose up -d --build` (first time: 5–10 min).
+5. **Open** http://localhost:3000, **log in** to Upstox (Step 2).
+6. **Re-download** (Step 3), then **verify** (Step 4), **sweep** (Step 5),
+   **final run** (Step 6), **open the report** (Step 7) — exactly as above.
+
+(Advanced alternative: if you made an `mc-backup.dump` on the first machine,
+you can restore it instead of re-downloading — but re-downloading is
+simpler.)
+
 ## Does the backtest itself resume if interrupted? (Steps 5–6)
 
 **No — and it doesn't need to.** Unlike the download (which is slow and

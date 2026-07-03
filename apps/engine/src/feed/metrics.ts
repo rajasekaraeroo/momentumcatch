@@ -7,6 +7,7 @@ export class FeedMetrics {
   duplicatesDropped = 0;
   largeSkewTicks = 0;
   reconnects = 0;
+  streamPublishErrors = 0;
   lastTickAtMs: number | null = null;
 
   private readonly tickTimestamps: number[] = [];
@@ -37,6 +38,7 @@ export class FeedMetrics {
       duplicatesDropped: this.duplicatesDropped,
       largeSkewTicks: this.largeSkewTicks,
       reconnects: this.reconnects,
+      streamPublishErrors: this.streamPublishErrors,
       ticksPerSecond: this.ticksPerSecond(now),
       lastTickAgeMs: this.lastTickAtMs === null ? null : now - this.lastTickAtMs,
     };

@@ -24,6 +24,18 @@ describe("toIst", () => {
   });
 });
 
+describe("hotKeyTtlSec", () => {
+  it("expires 1 hour past market close", async () => {
+    const { hotKeyTtlSec } = await import("./market-hours");
+    // 11:00 IST, close 15:35 → 4h35m to close + 1h = 20100s
+    expect(hotKeyTtlSec(wednesday(11, 0), "15:35")).toBe(20_100);
+    // after close → residual floor
+    expect(hotKeyTtlSec(wednesday(17, 0), "15:35")).toBe(60);
+    // 16:00 IST is 25 min past close → 35 min of the +1h remain
+    expect(hotKeyTtlSec(wednesday(16, 0), "15:35")).toBe(35 * 60);
+  });
+});
+
 describe("isWithinFeedWindow", () => {
   it("is open mid-session on a weekday", () => {
     expect(isWithinFeedWindow(wednesday(11, 0), sched)).toBe(true);

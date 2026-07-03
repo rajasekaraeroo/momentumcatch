@@ -38,6 +38,17 @@ export interface MarketSchedule {
   holidays: Set<string>;
 }
 
+/**
+ * TTL for hot Redis keys: expire 1 hour past market close (SPEC §4). After
+ * close, returns the residual (min 60s) so stale keys still die quickly.
+ */
+export function hotKeyTtlSec(utcMs: number, disconnectIst: string): number {
+  const ist = toIst(utcMs);
+  const closeMin = parseHhMm(disconnectIst);
+  const secsUntilClose = closeMin * 60 - (ist.minutesIst * 60);
+  return Math.max(60, secsUntilClose + 3600);
+}
+
 /** True when the feed should be connected (SPEC §2 schedule window). */
 export function isWithinFeedWindow(utcMs: number, sched: MarketSchedule): boolean {
   const ist = toIst(utcMs);

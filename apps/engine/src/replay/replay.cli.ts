@@ -7,6 +7,7 @@ import { findRepoRoot } from "../config/config.service";
 import { createLogger } from "../logger";
 import { FeedMetrics } from "../feed/metrics";
 import { TickFilter } from "../feed/tick-filter";
+import { Aggregator } from "../momentum/aggregator";
 import { FileReplaySource } from "./file-replay.source";
 
 /**
@@ -20,11 +21,13 @@ async function main(): Promise<void> {
     options: {
       file: { type: "string" },
       speed: { type: "string", default: "10" },
+      /** aggregate to 1s bars + baselines instead of raw tick logging */
+      bars: { type: "boolean", default: false },
     },
   });
   if (!values.file) {
     console.error(
-      "usage: pnpm engine:replay --file data/ticks/YYYY-MM-DD.ndjson [--speed 10|max]",
+      "usage: pnpm engine:replay --file data/ticks/YYYY-MM-DD.ndjson [--speed 10|max] [--bars]",
     );
     process.exit(2);
   }
@@ -44,11 +47,35 @@ async function main(): Promise<void> {
 
   const log = createLogger("replay");
   const tickLog = createLogger("tick");
+  const barLog = createLogger("bar");
   const metrics = new FeedMetrics();
   const filter = new TickFilter();
   const perInstrument = new Map<string, number>();
+  // Same defaults as config/momentum.yaml windows (SPEC §4).
+  const aggregator = values.bars
+    ? new Aggregator({ baselineWindow: 300, openExclusionSec: 300 })
+    : null;
+  let maxSec = 0;
 
-  log.info({ file, speed: values.speed }, "replay starting");
+  const logBar = (bar: import("@momentum-scan/shared").Bar): void => {
+    barLog.info(
+      {
+        key: bar.instrumentKey,
+        ts: bar.ts,
+        o: bar.o,
+        h: bar.h,
+        l: bar.l,
+        c: bar.c,
+        vol: bar.vol,
+        oiDelta: bar.oiDelta,
+        imb: bar.bidAskImbalance,
+        gap: bar.gap,
+      },
+      "1s bar",
+    );
+  };
+
+  log.info({ file, speed: values.speed, bars: values.bars }, "replay starting");
   const source = new FileReplaySource(file, speed);
   await source.start((tick: Tick) => {
     const verdict = filter.check(tick);
@@ -68,11 +95,26 @@ async function main(): Promise<void> {
       tick.instrumentKey,
       (perInstrument.get(tick.instrumentKey) ?? 0) + 1,
     );
-    tickLog.info(
-      { key: tick.instrumentKey, ts: tick.ts, ltp: tick.ltp, vol: tick.volume, oi: tick.oi },
-      "tick",
-    );
+    maxSec = Math.max(maxSec, Math.floor(tick.ts / 1000));
+    if (aggregator) {
+      aggregator
+        .handleEntries(tick.instrumentKey, [{ kind: "tick", tick }])
+        .forEach(logBar);
+    } else {
+      tickLog.info(
+        { key: tick.instrumentKey, ts: tick.ts, ltp: tick.ltp, vol: tick.volume, oi: tick.oi },
+        "tick",
+      );
+    }
   });
+
+  const baselines: Record<string, unknown> = {};
+  if (aggregator) {
+    for (const key of aggregator.activeInstruments()) {
+      aggregator.flush(key, maxSec).forEach(logBar); // close final buckets
+      baselines[key] = aggregator.baselineSnapshot(key);
+    }
+  }
 
   log.info(
     {
@@ -80,6 +122,9 @@ async function main(): Promise<void> {
       duplicatesDropped: metrics.duplicatesDropped,
       largeSkewTicks: metrics.largeSkewTicks,
       perInstrument: Object.fromEntries(perInstrument),
+      ...(aggregator
+        ? { barsClosed: aggregator.barsClosedTotal, baselines }
+        : {}),
     },
     "replay complete",
   );

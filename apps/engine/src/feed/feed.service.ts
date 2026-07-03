@@ -13,6 +13,7 @@ import { FeedState } from "./feed-state";
 import { isWithinFeedWindow } from "./market-hours";
 import { FeedMetrics } from "./metrics";
 import { loadFeedDecoder, type FeedDecoder } from "./proto";
+import { TICK_STREAM, type TickStreamBus } from "../streams/tick-stream";
 import { TickRecorder } from "./tick-recorder";
 import { UpstoxFeedSource } from "./upstox-feed.source";
 
@@ -27,12 +28,13 @@ export interface FeedStatus {
 
 /**
  * Feed orchestrator: market-hours scheduling (SPEC §2), token polling
- * (§12.2 — auto-start the moment a token appears), and the Stage-1 tick sink
- * (structured stdout log + optional NDJSON recording, §6).
+ * (§12.2 — auto-start the moment a token appears), tick fan-out to the
+ * Redis stream (§1) with gap markers on reconnect recovery (§9), and
+ * optional NDJSON recording (§6).
  *
- * Stage 1 subscribes to the underlying index keys from config/universe.yaml
- * (real keys, no instruments master needed). Option-universe resolution
- * (§12.3) arrives with Stage 2. FEED_KEYS overrides for testing.
+ * Subscribes to the underlying index keys from config/universe.yaml;
+ * option-universe resolution from the instruments master (§12.3) arrives
+ * with subscription management in Stage 3. FEED_KEYS overrides for testing.
  */
 @Injectable()
 export class FeedService implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -51,6 +53,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
   constructor(
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(TICK_STREAM) private readonly bus: TickStreamBus,
   ) {
     this.instrumentKeys = config.env.FEED_KEYS
       ? config.env.FEED_KEYS.split(",").map((k) => k.trim()).filter(Boolean)
@@ -142,26 +145,35 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
   }
 
   private handleTick(tick: Tick): void {
-    // Stage-1 acceptance: decoded ticks on stdout. Later stages fan out to
-    // the Redis stream here; the log drops to debug level then.
-    this.tickLog.info(
-      {
-        key: tick.instrumentKey,
-        ts: tick.ts,
-        ltp: tick.ltp,
-        vol: tick.volume,
-        oi: tick.oi,
-        bid: tick.bidPrice,
-        ask: tick.askPrice,
-      },
+    this.tickLog.debug(
+      { key: tick.instrumentKey, ts: tick.ts, ltp: tick.ltp, vol: tick.volume },
       "tick",
     );
+    // Fan out to the Redis stream (SPEC §1) — feed and momentum stay
+    // decoupled so they can be split into separate processes later.
+    this.bus.publishTick(tick).catch((err: Error) => {
+      this.metrics.streamPublishErrors += 1;
+      if (this.metrics.streamPublishErrors === 1) {
+        this.log.error({ err: err.message }, "tick stream publish failed");
+      }
+    });
     this.recorder?.record(tick);
   }
 
   private setState(state: FeedState): void {
     if (state === this.state) return;
     this.log.info({ from: this.state, to: state }, "feed state change");
+    const recovering =
+      state === FeedState.LIVE &&
+      (this.state === FeedState.RECONNECTING ||
+        this.state === FeedState.TICK_STARVED);
     this.state = state;
+    if (recovering) {
+      // Ticks were lost during the outage — tell consumers to restart
+      // baselines rather than z-score across the gap (SPEC §9).
+      this.bus.publishGap(this.instrumentKeys, Date.now()).catch((err: Error) => {
+        this.log.error({ err: err.message }, "gap marker publish failed");
+      });
+    }
   }
 }

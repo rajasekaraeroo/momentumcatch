@@ -202,6 +202,23 @@ in your browser like a normal web page.
 Repeat Steps 3–7, but everywhere you see `NIFTY` type `BANKNIFTY` instead
 (including the `--run-id`, e.g. `BANKNIFTY-1Y-REAL`).
 
+## Want SENSEX too?
+
+SENSEX is already set up as a proper instrument (it trades on the **BSE**, not
+the NSE — the app handles that difference for you). Repeat Steps 3–7 with
+`SENSEX` everywhere you see `NIFTY` (including `--run-id`, e.g.
+`SENSEX-1Y-REAL`).
+
+⚠️ **One extra thing to watch on the FIRST SENSEX download:** SENSEX's old
+option contracts come from Upstox's **BSE** history. Right after you start
+Step 3, watch the scrolling text for a line like `expiries in range`.
+- If the number is **greater than 0** and candles start downloading — great,
+  BSE history works for your account, let it run.
+- If it says `0 expiries` or every contract logs `empty_response`, your
+  Upstox plan may not serve **BSE** expired option data yet. In that case the
+  SENSEX *backtest* can't run (live scanning still would). Nothing is broken —
+  it's an account/data-availability limit, not a bug.
+
 ---
 
 ---

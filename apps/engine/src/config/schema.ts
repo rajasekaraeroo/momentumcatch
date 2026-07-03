@@ -17,6 +17,9 @@ export const universeConfigSchema = z.object({
         indexInstrumentKey: z.string().min(1),
         strikeStep: z.number().positive(),
         atmRange: z.number().int().positive(),
+        /** which exchange this underlying's options + instruments master
+         *  live on: NSE (NIFTY/BANKNIFTY, NSE_FO) or BSE (SENSEX, BSE_FO) */
+        exchange: z.enum(["NSE", "BSE"]).default("NSE"),
       }),
     )
     .min(1),

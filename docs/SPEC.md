@@ -331,6 +331,9 @@ const { access_token } = await res.json();
   in Postgres table `instrument_universe` + Redis for hot lookup.
 - Verify field names against the actual downloaded file at implementation
   time — do not trust memory of the schema.
+- BSE underlyings (SENSEX) download `BSE.json.gz` and keep `segment ===
+  'BSE_FO'` instead; the per-exchange download+merge is driven by each
+  underlying's `exchange` config field — see §12.8b.
 
 ### 12.4 Feed connection (V3 WebSocket)
 
@@ -628,3 +631,36 @@ during which the flow component reports unavailable.
 or when Connection B fails its reconnect ladder, the system degrades to
 D5-only operation identical to pre-Plus behavior. Connection B failures
 must never take down Connection A.
+
+### 12.8b Multi-exchange underlyings (NSE + BSE / SENSEX)
+
+NIFTY and BANKNIFTY are NSE index options (segment `NSE_FO`); SENSEX is a
+BSE index option (segment `BSE_FO`). The pipeline is exchange-agnostic — the
+only exchange-specific input is *which instruments master to download and
+which segment to keep*. This is driven entirely by config, not code:
+
+- **Config.** Each `underlyings[]` entry in `config/universe.yaml` carries an
+  `exchange: NSE | BSE` field (zod-validated, default `NSE`). SENSEX is
+  registered with `indexInstrumentKey: "BSE_INDEX|SENSEX"`, `strikeStep: 100`,
+  `exchange: BSE`.
+- **Instruments master.** `UniverseService.loadMaster` downloads one master
+  per *distinct* configured exchange and merges them:
+  `NSE.json.gz` → keep `segment === 'NSE_FO'`; `BSE.json.gz` → keep
+  `segment === 'BSE_FO'`. `parseMasterRow(row, segment)` filters to the
+  requested segment so the two dumps never cross-contaminate. Only exchanges
+  the universe actually uses are fetched.
+- **Selection, feed, downloader.** ATM ± N selection, subscription diffs, the
+  WebSocket feed, and the historical downloader all key off
+  `indexInstrumentKey` + `strikeStep` and pass instrument keys through
+  verbatim — no NSE assumption remains. The Expired Instruments API is called
+  with the BSE index key for SENSEX exactly as with the NSE key for NIFTY.
+
+**Verify at first BSE run (do not trust memory):**
+1. BSE.json.gz uses `segment === 'BSE_FO'` and the SENSEX underlying symbol is
+   literally `"SENSEX"` (confirm against a fresh dump; adjust the config
+   `symbol` / master field mapping if it differs).
+2. The Expired Instruments API serves BSE expired option contracts and 1m
+   candles for `BSE_INDEX|SENSEX` (Upstox Plus). If BSE expired data is not
+   served, the SENSEX *backtest* cannot run even though live scanning can.
+3. The V3 feed accepts `BSE_INDEX|SENSEX` and its `BSE_FO|...` option keys in
+   the same `sub` frame; watch the startup subscription-count log.

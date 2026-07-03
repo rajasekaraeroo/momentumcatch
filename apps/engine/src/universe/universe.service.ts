@@ -12,8 +12,22 @@ import {
   type MasterOption,
 } from "./universe-select";
 
-const MASTER_URL =
-  "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz";
+/**
+ * Per-exchange instruments master (SPEC §12.3, §12.8b). NIFTY/BANKNIFTY
+ * options live in the NSE dump (segment NSE_FO); SENSEX options live in the
+ * BSE dump (segment BSE_FO). We download only the exchanges the configured
+ * universe actually uses and merge the parsed rows.
+ */
+const EXCHANGE_MASTERS: Record<string, { url: string; segment: string }> = {
+  NSE: {
+    url: "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz",
+    segment: "NSE_FO",
+  },
+  BSE: {
+    url: "https://assets.upstox.com/market-quote/instruments/exchange/BSE.json.gz",
+    segment: "BSE_FO",
+  },
+};
 
 export interface UniverseState {
   underlying: string;
@@ -166,6 +180,13 @@ export class UniverseService {
     }
   }
 
+  /** distinct exchanges the configured universe actually needs (NSE, BSE) */
+  private configuredExchanges(): string[] {
+    const set = new Set<string>();
+    for (const u of this.config.universe.underlyings) set.add(u.exchange);
+    return [...set];
+  }
+
   private async loadMaster(nowMs: number): Promise<MasterOption[] | null> {
     // refresh at most every 6h; §2 asks for a daily 08:45 pull which the
     // first index tick of the morning triggers naturally
@@ -173,21 +194,36 @@ export class UniverseService {
       return this.master;
     }
     try {
-      const res = await fetch(MASTER_URL);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const gz = Buffer.from(await res.arrayBuffer());
-      const rows: unknown[] = JSON.parse(gunzipSync(gz).toString("utf8"));
-      const parsed = rows
-        .map(parseMasterRow)
-        .filter((r): r is MasterOption => r !== null);
-      if (parsed.length === 0) {
-        throw new Error("master parsed but yielded 0 NSE_FO options — schema drift?");
+      const merged: MasterOption[] = [];
+      for (const exchange of this.configuredExchanges()) {
+        const source = EXCHANGE_MASTERS[exchange];
+        if (!source) {
+          this.log.warn({ exchange }, "no instruments-master URL for exchange — skipped");
+          continue;
+        }
+        const res = await fetch(source.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status} for ${exchange} master`);
+        const gz = Buffer.from(await res.arrayBuffer());
+        const rows: unknown[] = JSON.parse(gunzipSync(gz).toString("utf8"));
+        const parsed = rows
+          .map((r) => parseMasterRow(r, source.segment))
+          .filter((r): r is MasterOption => r !== null);
+        this.log.info(
+          { exchange, segment: source.segment, contracts: parsed.length },
+          "exchange instruments master parsed",
+        );
+        merged.push(...parsed);
       }
-      this.master = parsed;
+      if (merged.length === 0) {
+        throw new Error(
+          "masters parsed but yielded 0 option contracts — schema drift?",
+        );
+      }
+      this.master = merged;
       this.masterFetchedAt = nowMs;
       this.fetchFailedLogged = false;
-      this.log.info({ contracts: parsed.length }, "instruments master loaded");
-      return parsed;
+      this.log.info({ contracts: merged.length }, "instruments master loaded");
+      return merged;
     } catch (err) {
       if (!this.fetchFailedLogged) {
         this.log.error(

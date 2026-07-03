@@ -5,10 +5,23 @@ underlyings:
     indexInstrumentKey: "NSE_INDEX|Nifty 50"
     strikeStep: 50
     atmRange: 10          # ATM ± N strikes, CE & PE, nearest weekly expiry
+    exchange: NSE
   - symbol: BANKNIFTY
     indexInstrumentKey: "NSE_INDEX|Nifty Bank"
     strikeStep: 100
     atmRange: 10
+    exchange: NSE
+  # SENSEX trades on BSE (BSE_FO). Live scanning + the ATM±N selection work
+  # generically; the historical downloader passes the BSE index key through
+  # to Upstox's Expired Instruments API — VERIFY that BSE expired option
+  # contracts are served before relying on the SENSEX backtest (SPEC §12.8b).
+  # The master's underlying symbol for SENSEX options must match "SENSEX";
+  # confirm against a fresh BSE.json.gz on first run.
+  - symbol: SENSEX
+    indexInstrumentKey: "BSE_INDEX|SENSEX"
+    strikeStep: 100
+    atmRange: 10
+    exchange: BSE
 
 expiry:
   select: nearest_weekly

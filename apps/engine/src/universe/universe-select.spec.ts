@@ -20,6 +20,7 @@ function fixtureMaster(): MasterOption[] {
           side,
           expiry,
           lotSize: 75,
+          segment: "NSE_FO",
         });
       }
     }
@@ -45,6 +46,7 @@ describe("parseMasterRow (§12.3 — tolerant of schema variants)", () => {
       side: 1,
       expiry: "2026-07-09",
       lotSize: 75,
+      segment: "NSE_FO",
     });
   });
   it("handles epoch-ms expiry and rejects non-options", () => {
@@ -59,6 +61,30 @@ describe("parseMasterRow (§12.3 — tolerant of schema variants)", () => {
     expect(parseMasterRow(row)?.expiry).toBe("2026-07-09");
     expect(parseMasterRow({ ...row, instrument_type: "FUT" })).toBeNull();
     expect(parseMasterRow({ ...row, segment: "NSE_EQ" })).toBeNull();
+  });
+
+  it("parses BSE_FO (SENSEX) rows only when the segment is requested (§12.8b)", () => {
+    const row = {
+      segment: "BSE_FO",
+      instrument_key: "BSE_FO|998877",
+      instrument_type: "CE",
+      underlying_symbol: "SENSEX",
+      strike_price: 81000,
+      expiry: "2026-07-09",
+      lot_size: 20,
+    };
+    // requesting the BSE segment yields the SENSEX contract...
+    expect(parseMasterRow(row, "BSE_FO")).toEqual({
+      instrumentKey: "BSE_FO|998877",
+      underlyingSymbol: "SENSEX",
+      strike: 81000,
+      side: 1,
+      expiry: "2026-07-09",
+      lotSize: 20,
+      segment: "BSE_FO",
+    });
+    // ...while the default (NSE_FO) filter rejects it, keeping dumps separate
+    expect(parseMasterRow(row)).toBeNull();
   });
 });
 
@@ -101,6 +127,36 @@ describe("selectUniverse (§2)", () => {
     expect(
       selectUniverse(master, { ...base, underlyingSymbol: "BANKNIFTY", spot: 52_000 }),
     ).toBeNull();
+  });
+
+  it("selects BSE_FO (SENSEX) contracts identically to NSE ones (§12.8b)", () => {
+    // SENSEX trades on BSE with a 100-point strike step; selection is
+    // exchange-agnostic and keys through unchanged from the master.
+    const sensex: MasterOption[] = [];
+    for (let strike = 80_000; strike <= 82_000; strike += 100) {
+      for (const side of [1, -1] as const) {
+        sensex.push({
+          instrumentKey: `BSE_FO|${strike}${side === 1 ? "CE" : "PE"}`,
+          underlyingSymbol: "SENSEX",
+          strike,
+          side,
+          expiry: "2026-07-09",
+          lotSize: 20,
+          segment: "BSE_FO",
+        });
+      }
+    }
+    const sel = selectUniverse(sensex, {
+      underlyingSymbol: "SENSEX",
+      spot: 81_040,
+      strikeStep: 100,
+      atmRange: 10,
+      todayIst: "2026-07-03",
+      pastRollCutoff: false,
+    });
+    expect(sel?.atm).toBe(81_000);
+    expect(sel?.options).toHaveLength(21 * 2);
+    expect(sel?.options.every((o) => o.segment === "BSE_FO")).toBe(true);
   });
 });
 

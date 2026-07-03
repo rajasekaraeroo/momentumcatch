@@ -15,14 +15,15 @@ export interface MasterOption {
   side: 1 | -1; // CE / PE
   expiry: string; // YYYY-MM-DD
   lotSize?: number;
+  segment: string; // NSE_FO (NIFTY/BANKNIFTY) | BSE_FO (SENSEX) — SPEC §12.8b
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the instruments
    master is external JSON with drifting field names; every access below is
    guarded and normalized immediately. */
-export function parseMasterRow(row: any): MasterOption | null {
-  const segment = row?.segment ?? row?.exchange_segment;
-  if (segment !== "NSE_FO") return null;
+export function parseMasterRow(row: any, segment = "NSE_FO"): MasterOption | null {
+  const rowSegment = row?.segment ?? row?.exchange_segment;
+  if (rowSegment !== segment) return null;
   const type = row?.instrument_type ?? row?.option_type;
   if (type !== "CE" && type !== "PE") return null;
   const instrumentKey = row?.instrument_key ?? row?.instrumentKey;
@@ -46,6 +47,7 @@ export function parseMasterRow(row: any): MasterOption | null {
     side: type === "CE" ? 1 : -1,
     expiry,
     lotSize: Number.isFinite(lot) ? lot : undefined,
+    segment,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

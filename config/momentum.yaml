@@ -15,6 +15,10 @@ weights:                     # renormalized if a component is unavailable
 caps:
   volumeBurstZ: 6
 
+floors:                      # std floors so quiet/opening windows can't blow up z-scores (§4)
+  retVol: 0.0002             # per-second |log return| floor
+  volStd: 1                  # per-second volume std floor (contracts)
+
 underlyingConfirmation:
   min: 0.5
   max: 1.5

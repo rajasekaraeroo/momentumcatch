@@ -8,8 +8,10 @@ import { AppConfigService } from "../config/config.service";
 import { hotKeyTtlSec } from "../feed/market-hours";
 import { createLogger } from "../logger";
 import { TICK_STREAM, type TickStreamBus } from "../streams/tick-stream";
+import { InstrumentRegistry } from "../universe/instrument-registry";
 import { Aggregator } from "./aggregator";
 import { BAR_STORE, type BarStore } from "./bar-store";
+import { MomentumService } from "./momentum.service";
 
 /**
  * The 1s aggregation job (SPEC §4): every second, pull new entries from the
@@ -47,6 +49,8 @@ export class AggregationService
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(TICK_STREAM) private readonly bus: TickStreamBus,
     @Inject(BAR_STORE) private readonly store: BarStore,
+    @Inject(MomentumService) private readonly momentum: MomentumService,
+    @Inject(InstrumentRegistry) private readonly registry: InstrumentRegistry,
   ) {
     this.aggregator = new Aggregator({
       baselineWindow: config.momentum.windows.baselineSec,
@@ -86,10 +90,11 @@ export class AggregationService
       this.lastRunAt = now;
       const throughSec = Math.floor(now / 1000) - CLOSE_LAG_SEC;
       const ttl = hotKeyTtlSec(now, this.config.universe.schedule.disconnectIst);
-      const batches = await this.bus.consume(
-        this.instrumentKeys,
-        MAX_ENTRIES_PER_STREAM,
-      );
+      // static index/override keys + whatever the universe resolved intraday
+      const consumeKeys = [
+        ...new Set([...this.instrumentKeys, ...this.registry.optionKeys()]),
+      ];
+      const batches = await this.bus.consume(consumeKeys, MAX_ENTRIES_PER_STREAM);
 
       // instruments with fresh entries + previously active ones needing flush
       const keys = new Set([
@@ -119,12 +124,10 @@ export class AggregationService
             "1s bar",
           );
         }
-        await this.store.save(
-          key,
-          bars,
-          this.aggregator.baselineSnapshot(key),
-          ttl,
-        );
+        const baseline = this.aggregator.baselineSnapshot(key);
+        await this.store.save(key, bars, baseline, ttl);
+        // hand the closed bars to the scoring engine (SPEC §5)
+        this.momentum.onBars(key, bars, baseline);
       }
     } catch (err) {
       this.log.error({ err: (err as Error).message }, "aggregation run failed");

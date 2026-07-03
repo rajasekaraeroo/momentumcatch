@@ -5,13 +5,17 @@ import { FeedModule } from "./feed/feed.module";
 import { HealthModule } from "./health/health.module";
 import { MomentumModule } from "./momentum/momentum.module";
 import { RedisModule } from "./redis/redis.module";
+import { SignalsModule } from "./signals/signals.module";
 import { StreamsModule } from "./streams/streams.module";
+import { UniverseModule } from "./universe/universe.module";
 
 @Module({
   imports: [
     AppConfigModule,
     RedisModule,
     StreamsModule,
+    SignalsModule,
+    UniverseModule,
     AuthModule,
     FeedModule,
     MomentumModule,

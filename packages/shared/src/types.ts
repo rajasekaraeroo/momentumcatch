@@ -44,6 +44,10 @@ export interface Bar {
   vwapNum: number;
   vwapDen: number;
   bidAskImbalance?: number;
+  /** last observed bid/ask spread within the bar, % of mid (liquidity gate) */
+  spreadPct?: number;
+  /** last observed implied volatility within the bar (when greeks present) */
+  iv?: number;
   /** true if a feed gap spans this bar — baselines must restart (SPEC §9) */
   gap?: boolean;
 }

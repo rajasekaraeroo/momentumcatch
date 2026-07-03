@@ -14,6 +14,8 @@ import { isWithinFeedWindow } from "./market-hours";
 import { FeedMetrics } from "./metrics";
 import { loadFeedDecoder, type FeedDecoder } from "./proto";
 import { TICK_STREAM, type TickStreamBus } from "../streams/tick-stream";
+import { InstrumentRegistry } from "../universe/instrument-registry";
+import { UniverseService } from "../universe/universe.service";
 import { TickRecorder } from "./tick-recorder";
 import { UpstoxFeedSource } from "./upstox-feed.source";
 
@@ -54,6 +56,8 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(TICK_STREAM) private readonly bus: TickStreamBus,
+    @Inject(UniverseService) private readonly universe: UniverseService,
+    @Inject(InstrumentRegistry) private readonly registry: InstrumentRegistry,
   ) {
     this.instrumentKeys = config.env.FEED_KEYS
       ? config.env.FEED_KEYS.split(",").map((k) => k.trim()).filter(Boolean)
@@ -63,6 +67,14 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
         path.join(config.repoRoot, "data", "ticks"),
       );
     }
+    // intraday universe changes (§2 re-centering) go out as sub/unsub diffs
+    this.universe.onSubscriptionDiff = (add, remove) =>
+      this.source?.updateSubscriptions(add, remove);
+  }
+
+  /** index keys from config plus the currently resolved option universe */
+  private currentKeys(): string[] {
+    return [...new Set([...this.instrumentKeys, ...this.universe.optionKeys()])];
   }
 
   onApplicationBootstrap(): void {
@@ -83,7 +95,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
   getStatus(): FeedStatus {
     return {
       state: this.state,
-      subscriptionCount: this.instrumentKeys.length,
+      subscriptionCount: this.currentKeys().length,
       protoAvailable: this.decoder !== null,
       metrics: this.metrics.snapshot(Date.now()),
     };
@@ -135,7 +147,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     this.source = new UpstoxFeedSource({
       decoder: this.decoder,
       tokenProvider: () => this.auth.getToken(),
-      instrumentKeys: this.instrumentKeys,
+      instrumentKeys: () => this.currentKeys(),
       onTick: (tick) => this.handleTick(tick),
       onState: (s) => this.setState(s),
       metrics: this.metrics,
@@ -145,6 +157,10 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
   }
 
   private handleTick(tick: Tick): void {
+    // index prints drive universe resolution + re-centering (SPEC §2, §12.3)
+    if (this.registry.get(tick.instrumentKey)?.kind === "index") {
+      void this.universe.onIndexTick(tick.instrumentKey, tick.ltp, Date.now());
+    }
     this.tickLog.debug(
       { key: tick.instrumentKey, ts: tick.ts, ltp: tick.ltp, vol: tick.volume },
       "tick",
@@ -171,7 +187,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     if (recovering) {
       // Ticks were lost during the outage — tell consumers to restart
       // baselines rather than z-score across the gap (SPEC §9).
-      this.bus.publishGap(this.instrumentKeys, Date.now()).catch((err: Error) => {
+      this.bus.publishGap(this.currentKeys(), Date.now()).catch((err: Error) => {
         this.log.error({ err: err.message }, "gap marker publish failed");
       });
     }

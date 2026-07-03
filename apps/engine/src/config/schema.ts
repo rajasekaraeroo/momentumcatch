@@ -50,6 +50,10 @@ export const momentumConfigSchema = z.object({
     flowImbalance: z.number().nonnegative(),
   }),
   caps: z.object({ volumeBurstZ: z.number().positive() }),
+  floors: z.object({
+    retVol: z.number().positive(),
+    volStd: z.number().nonnegative(),
+  }),
   underlyingConfirmation: z.object({ min: z.number(), max: z.number() }),
   liquidityGate: z.object({
     minVol5s: z.number().nonnegative(),

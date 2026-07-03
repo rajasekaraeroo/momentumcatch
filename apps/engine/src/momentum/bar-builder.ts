@@ -22,6 +22,8 @@ interface OpenBucket {
   vwapNum: number;
   vwapDen: number;
   bidAskImbalance?: number;
+  spreadPct?: number;
+  iv?: number;
 }
 
 /** if more than this many trade-less seconds elapse, treat as a gap instead
@@ -110,6 +112,13 @@ export class BarBuilder {
 
     const imb = depthImbalance(tick);
     if (imb !== undefined) b.bidAskImbalance = imb;
+    if (tick.bidPrice !== undefined && tick.askPrice !== undefined) {
+      const mid = (tick.bidPrice + tick.askPrice) / 2;
+      if (mid > 0 && tick.askPrice >= tick.bidPrice) {
+        b.spreadPct = ((tick.askPrice - tick.bidPrice) / mid) * 100;
+      }
+    }
+    if (tick.iv !== undefined) b.iv = tick.iv;
 
     return closed;
   }
@@ -171,6 +180,8 @@ export class BarBuilder {
       vwapNum: b.vwapNum,
       vwapDen: b.vwapDen,
       bidAskImbalance: b.bidAskImbalance,
+      spreadPct: b.spreadPct,
+      iv: b.iv,
     };
     if (this.gapPending) {
       bar.gap = true; // first bar after an outage (SPEC §9)

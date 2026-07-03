@@ -16,7 +16,9 @@ export interface UpstoxFeedSourceDeps {
   decoder: FeedDecoder;
   /** returns the current access token, or null when not authenticated */
   tokenProvider: () => Promise<string | null>;
-  instrumentKeys: string[];
+  /** current subscription set — re-read on every (re)subscribe so intraday
+   *  universe changes survive reconnects */
+  instrumentKeys: () => string[];
   onTick: (tick: Tick) => void;
   onState: (state: FeedState) => void;
   metrics: FeedMetrics;
@@ -112,7 +114,7 @@ export class UpstoxFeedSource {
 
     ws.on("open", () => {
       this.deps.log.info(
-        { keys: this.deps.instrumentKeys.length },
+        { keys: this.deps.instrumentKeys().length },
         "feed connected — subscribing",
       );
       this.starvation.onConnected(this.now());
@@ -146,13 +148,24 @@ export class UpstoxFeedSource {
   }
 
   private subscribe(): void {
+    this.sendFrame("sub", this.deps.instrumentKeys());
+  }
+
+  /** §2 intraday re-centering: sub/unsub diffs, never a full resubscribe. */
+  updateSubscriptions(add: string[], remove: string[]): void {
+    if (add.length) this.sendFrame("sub", add);
+    if (remove.length) this.sendFrame("unsub", remove);
+  }
+
+  private sendFrame(method: "sub" | "unsub", instrumentKeys: string[]): void {
+    if (instrumentKeys.length === 0 || this.ws?.readyState !== WebSocket.OPEN) return;
     // Binary frame, never text (SPEC §12.4 / known failure mode §12.6.1).
-    this.ws?.send(
+    this.ws.send(
       Buffer.from(
         JSON.stringify({
           guid: "momentum-scan",
-          method: "sub",
-          data: { mode: "full", instrumentKeys: this.deps.instrumentKeys },
+          method,
+          data: { mode: "full", instrumentKeys },
         }),
       ),
     );

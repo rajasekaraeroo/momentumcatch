@@ -206,6 +206,15 @@ Repeat Steps 3–7, but everywhere you see `NIFTY` type `BANKNIFTY` instead
 
 ---
 
+## Does the backtest itself resume if interrupted? (Steps 5–6)
+
+**No — and it doesn't need to.** Unlike the download (which is slow and
+resumable), the backtest RUN is fast local computation on data you already
+have. If it's interrupted, just run it again from the start — it re-reads
+your saved data (it never re-downloads) and finishes in minutes. Re-running
+the same `--run-id` is safe: it clears the previous run's results first, so
+numbers never double up.
+
 ## Common problem: "relation bar_1m_hist does not exist"
 
 This means the database tables weren't created yet (it can happen if the

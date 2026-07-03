@@ -62,6 +62,15 @@ async function runRange(opts: {
   let eventCount = 0;
   let episodeCount = 0;
 
+  // The backtest run is NOT resumable (unlike the download) — it recomputes
+  // from scratch each time. Clear any rows from a previous run with this
+  // run_id first, so re-running (e.g. after an interruption or a threshold
+  // change) never double-counts. Cheap: it's local compute, not a re-download.
+  if (opts.persist) {
+    await pool.query("DELETE FROM momentum_event_bt WHERE run_id = $1", [opts.runId]);
+    await pool.query("DELETE FROM momentum_episode_bt WHERE run_id = $1", [opts.runId]);
+  }
+
   for (const day of sessions) {
     const { contracts, candles } = await store.sessionCandles(underlying, day);
     // derive per-contract oiDelta chronologically (stored oi is a level)

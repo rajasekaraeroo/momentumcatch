@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ApiModule } from "./api/api.module";
+import { AlertsModule } from "./alerts/alerts.module";
 import { AuthModule } from "./auth/auth.module";
 import { AppConfigModule } from "./config/config.module";
 import { DbModule } from "./db/db.module";
@@ -26,6 +27,7 @@ import { UniverseModule } from "./universe/universe.module";
     MomentumModule,
     LifecycleModule,
     PersistenceModule,
+    AlertsModule,
     ApiModule,
     HealthModule,
   ],

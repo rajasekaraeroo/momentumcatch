@@ -61,5 +61,17 @@ components are validated only by live tick recording (Track B).
 
 ## Status
 
-Scaffold + specification. Implementation is executed with Claude Code by
-following `CLAUDE.md` and the build order in `docs/SPEC.md` §11.
+All SPEC §11 stages implemented: live engine (feed → Redis stream → 1s
+aggregation → momentum scoring → lifecycle/decay), REST + WS API, dashboard,
+alerts, replay mode, historical downloader and the one-year 1-minute
+backtester with the §13.4 evaluation report. `pnpm test` covers 111 tests
+including the §13.3 poisoned-future no-lookahead fixture and the compliance
+gate.
+
+Before first live use: run `bash scripts/fetch-proto.sh` (the
+MarketDataFeedV3.proto contract is downloaded, never hand-written), replace
+the placeholder entries in `config/holidays.json` with the official NSE
+circular, and verify the instruments-master field names against a fresh
+download (`apps/engine/src/universe/universe-select.ts`). The real §13
+backtest needs an Upstox Plus login; `pnpm backtest:synthetic` generates a
+clearly-labeled synthetic year for pipeline validation.

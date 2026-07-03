@@ -8,8 +8,9 @@
     "build": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "replay": "tsx src/replay/replay.cli.ts",
-    "backtest": "echo 'backtest arrives at SPEC §11 stage 8' && exit 1",
-    "backtest:download": "echo 'backtest downloader arrives at SPEC §11 stage 8' && exit 1"
+    "backtest": "tsx src/backtest/backtest.cli.ts",
+    "backtest:download": "tsx src/history/download.cli.ts",
+    "backtest:synthetic": "tsx src/history/synthetic.cli.ts"
   },
   "dependencies": {
     "@momentum-scan/shared": "workspace:*",

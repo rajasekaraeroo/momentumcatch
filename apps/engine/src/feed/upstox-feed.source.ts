@@ -13,6 +13,10 @@ const FEED_URL = "wss://api.upstox.com/v3/feed/market-data-feed";
 const MAX_AUTH_FAILURES = 3; // SPEC §12.6.2: don't hammer reconnects on 403
 
 export interface UpstoxFeedSourceDeps {
+  /** connection name for logs/health ("A" broad, "B" focus pool — §12.8) */
+  name: string;
+  /** subscription mode: "full" (D5) or "full_d30" (§12.8 focus pool) */
+  mode: string;
   decoder: FeedDecoder;
   /** returns the current access token, or null when not authenticated */
   tokenProvider: () => Promise<string | null>;
@@ -151,6 +155,10 @@ export class UpstoxFeedSource {
     this.sendFrame("sub", this.deps.instrumentKeys());
   }
 
+  get name(): string {
+    return this.deps.name;
+  }
+
   /** §2 intraday re-centering: sub/unsub diffs, never a full resubscribe. */
   updateSubscriptions(add: string[], remove: string[]): void {
     if (add.length) this.sendFrame("sub", add);
@@ -163,9 +171,9 @@ export class UpstoxFeedSource {
     this.ws.send(
       Buffer.from(
         JSON.stringify({
-          guid: "momentum-scan",
+          guid: `momentum-scan-${this.deps.name}`,
           method,
-          data: { mode: "full", instrumentKeys },
+          data: { mode: this.deps.mode, instrumentKeys },
         }),
       ),
     );
@@ -222,6 +230,11 @@ export class UpstoxFeedSource {
     if (this.starvationTimer) clearInterval(this.starvationTimer);
     this.starvationTimer = setInterval(() => {
       if (this.stopped || !this.starvation.isStarved(this.now())) return;
+      if (this.deps.instrumentKeys().length === 0) {
+        // idle focus-pool connection with zero slots — silence is expected
+        this.starvation.onConnected(this.now());
+        return;
+      }
       // Escalation ladder (SPEC §12.6.1)
       if (!this.resubscribedForStarvation) {
         this.deps.log.warn("tick starvation — resubscribing once");

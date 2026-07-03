@@ -22,7 +22,11 @@ export interface Tick {
   bidQty?: number;
   askPrice?: number;
   askQty?: number;
+  /** order book: 5 levels in standard `full` mode, 30 levels when the
+   *  instrument is in the D30 focus pool (`full_d30`, SPEC §12.8) */
   depth?: { bids: DepthLevel[]; asks: DepthLevel[] };
+  /** number of book levels this tick carries (5 or 30); absent = unknown/5 */
+  depthLevels?: number;
   iv?: number;
   delta?: number;
   theta?: number;
@@ -48,6 +52,9 @@ export interface Bar {
   spreadPct?: number;
   /** last observed implied volatility within the bar (when greeks present) */
   iv?: number;
+  /** book depth basis of the imbalance snapshot (5 or 30, SPEC §12.8) —
+   *  a change between bars marks a D5↔D30 switch: flow smoothers restart */
+  depthLevels?: number;
   /** true if a feed gap spans this bar — baselines must restart (SPEC §9) */
   gap?: boolean;
 }
@@ -136,4 +143,11 @@ export interface LifecycleTransition {
 export interface TickSource {
   start(onTick: (t: Tick) => void): Promise<void>;
   stop(): Promise<void>;
+}
+
+/** §12.8 D30 focus pool status, surfaced on /health and WS /live. */
+export interface FocusPoolState {
+  slots: string[];
+  capacity: number;
+  connectionState: string;
 }

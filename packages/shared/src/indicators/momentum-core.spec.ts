@@ -92,6 +92,43 @@ describe("volumeBurst (§5.3)", () => {
   });
 });
 
+describe("flowImbalance §12.8 depth-switch hygiene", () => {
+  const mk = (imb: number, depthLevels: number, i: number): Bar => ({
+    instrumentKey: KEY,
+    ts: 1_000_000_000 + i * 1000,
+    o: 100, h: 100, l: 100, c: 100,
+    vol: 100, oiDelta: 0, vwapNum: 0, vwapDen: 0,
+    bidAskImbalance: imb,
+    depthLevels,
+  });
+
+  it("restarts the EMA at a D5→D30 switch and warms for 10 bars", () => {
+    // 20 D5 bars strongly positive, then a switch to D30 strongly negative
+    const series: Bar[] = [
+      ...Array.from({ length: 20 }, (_, i) => mk(0.8, 5, i)),
+      ...Array.from({ length: 5 }, (_, i) => mk(-0.8, 30, 20 + i)),
+    ];
+    // only 5 post-switch bars < 10 warmup → unavailable (warming)
+    expect(flowImbalance(series, 10).available).toBe(false);
+
+    const warmed: Bar[] = [
+      ...Array.from({ length: 20 }, (_, i) => mk(0.8, 5, i)),
+      ...Array.from({ length: 12 }, (_, i) => mk(-0.8, 30, 20 + i)),
+    ];
+    const r = flowImbalance(warmed, 10);
+    expect(r.available).toBe(true);
+    // pre-switch positive D5 state must NOT leak into the D30 EMA
+    expect(r.normalized).toBeLessThan(-0.5);
+  });
+
+  it("no switch in window → unchanged D5 behavior", () => {
+    const series = Array.from({ length: 20 }, (_, i) => mk(0.6, 5, i));
+    const r = flowImbalance(series, 10);
+    expect(r.available).toBe(true);
+    expect(r.normalized).toBeCloseTo(0.6, 5);
+  });
+});
+
 describe("flowImbalance (§5.5)", () => {
   it("EMA follows persistent book pressure", () => {
     const buys = bars(flat(20), Array(20).fill({ bidAskImbalance: 0.6 }));

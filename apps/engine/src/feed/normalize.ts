@@ -82,7 +82,8 @@ function depthFromQuotes(quotes: DecodedQuote[] | undefined): {
   if (!quotes?.length) return {};
   const bids: DepthLevel[] = [];
   const asks: DepthLevel[] = [];
-  for (const q of quotes.slice(0, 5)) {
+  // 5 levels in `full` mode, up to 30 in `full_d30` (SPEC §12.8)
+  for (const q of quotes.slice(0, 30)) {
     const bp = num(q.bidP ?? q.bidPrice);
     const bq = num(q.bidQ ?? q.bidQty);
     const ap = num(q.askP ?? q.askPrice);
@@ -139,6 +140,7 @@ export function normalizeFeedResponse(
       askPrice: best?.askPrice,
       askQty: best?.askQty,
       depth,
+      depthLevels: depth ? Math.max(depth.bids.length, depth.asks.length) : undefined,
       iv: num(greeks?.iv),
       delta: num(greeks?.delta),
       theta: num(greeks?.theta),

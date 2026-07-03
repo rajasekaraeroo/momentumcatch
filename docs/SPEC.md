@@ -136,7 +136,11 @@ a z-score or normalized score in [-1, +1], and raw evidence.
    short buildup; price↓ + OI↓ = long unwinding. (Descriptive labels only.)
 5. **Order-flow imbalance** — from top-5 depth: (Σbid qty − Σask qty)/(Σbid+Σask),
    smoothed EMA over 10s. Also track bid/ask spread widening (momentum with a
-   blowing-out spread is lower quality — penalize).
+   blowing-out spread is lower quality — penalize). When the instrument is in
+   the D30 focus pool (§12.8), the imbalance becomes DISTANCE-WEIGHTED over
+   the 30-level book: w_i = exp(−λ·i) per level i, so size parked far from
+   the touch counts far less than size at the touch. On promotion mid-episode
+   the imbalance smoother restarts (D5 and D30 EMA states are never mixed).
 6. **Underlying confirmation** — same velocity computation on the index. For a
    CE, positive underlying velocity confirms; for a PE, negative confirms.
    Confirmation multiplier in [0.5, 1.5].
@@ -582,3 +586,45 @@ interface Episode {
 - Backtest metric (feeds report §13.4.5): median giveback at MomentumFading
   must be materially below giveback at the naive score<40 rule; include both
   in the report for comparison.
+
+### 12.8 D30 Focus Pool (Upstox Plus)
+
+Upstox Plus provides up to 5 concurrent V3 WebSocket connections and a
+`full_d30` subscription mode carrying 30-level market depth, limited to 50
+instruments per connection. Plus does NOT change tick latency or frequency —
+same feed, wider payload. This section uses it to sharpen decay observation.
+
+**Connection topology.** One ConnectionManager owns N named connections:
+
+- **Connection A — broad universe**: `full` mode (5-level depth), all ATM±N
+  options + indices. This is the pre-Plus behavior, unchanged.
+- **Connection B — focus pool**: `full_d30` mode, max 50 slots, dedicated to
+  instruments with OPEN episodes (§14).
+
+Each connection has independent reconnect/backoff/starvation state; the
+feed-health strip shows both, plus pool occupancy ("focus 12/50").
+
+**Promotion.** When a MomentumEvent opens an episode, subscribe that
+instrument on Connection B in `full_d30`. While pooled, its ticks are taken
+from B (A's duplicates for that key are ignored); its flow components use
+the distance-weighted D30 imbalance (§5.5). All other instruments continue
+on D5 via A.
+
+**Demotion.** On MomentumDead + cooldown expiry, unsubscribe from B and fall
+back to A's D5 ticks.
+
+**Overflow (>50 open episodes).** Evict the episode with the lowest current
+composite score — but NEVER evict FADING episodes ahead of BUILDING ones:
+decay observation has priority, it is the reason the pool exists. (PEAK
+ranks with BUILDING for eviction purposes; only FADING is protected.)
+
+**EMA hygiene.** A promotion or demotion switches the depth basis (5↔30
+levels). The flow-imbalance smoother must restart at the switch — never mix
+D5 and D30 EMA states; the first 10s after a switch are a warming period
+during which the flow component reports unavailable.
+
+**Graceful degradation.** Everything is behind `focusPool.enabled`
+(config/momentum.yaml). With the flag off, or when the account lacks Plus,
+or when Connection B fails its reconnect ladder, the system degrades to
+D5-only operation identical to pre-Plus behavior. Connection B failures
+must never take down Connection A.

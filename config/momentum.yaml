@@ -51,3 +51,10 @@ lifecycle:                   # SPEC §14
   deadAt: 75
   deadScoreFloor: 35
   maxEpisodeSec: 900
+
+focusPool:                   # §12.8 D30 focus pool (Upstox Plus)
+  enabled: false             # false → byte-identical pre-Plus D5-only behavior
+  capacity: 50               # full_d30 instruments per connection (Plus limit)
+  demotionCooldownSec: 60    # keep D30 after MomentumDead until cooldown expires
+  imbalanceLambda: 0.25      # §5.5 distance decay: w_i = exp(-lambda * i)
+  emaWarmupSec: 10           # flow smoother warming period after a depth switch

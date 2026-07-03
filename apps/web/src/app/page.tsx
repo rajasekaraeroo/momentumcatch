@@ -14,7 +14,7 @@ export default function Page(): JSX.Element {
 
   return (
     <main>
-      <HealthStrip feed={live.feed} wsConnected={live.connected} />
+      <HealthStrip feed={live.feed} focusPool={live.focusPool} wsConnected={live.connected} />
       <div className="grid-layout">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <HeatGrid

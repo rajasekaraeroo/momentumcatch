@@ -2,6 +2,7 @@ import { Controller, Get, Inject } from "@nestjs/common";
 import type Redis from "ioredis";
 import { AuthService } from "../auth/auth.service";
 import { FeedService } from "../feed/feed.service";
+import { FocusPoolService } from "../focus-pool/focus-pool.service";
 import { AggregationService } from "../momentum/aggregation.service";
 import { REDIS } from "../redis/redis.module";
 
@@ -12,6 +13,7 @@ export class HealthController {
     @Inject(FeedService) private readonly feed: FeedService,
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(AggregationService) private readonly aggregation: AggregationService,
+    @Inject(FocusPoolService) private readonly focusPool: FocusPoolService,
     @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
@@ -25,6 +27,7 @@ export class HealthController {
       status: "ok",
       feed: this.feed.getStatus(),
       aggregation: this.aggregation.getStatus(),
+      focusPool: this.focusPool.state(),
       auth: await this.auth.status(),
       redis: redisUp ? "up" : "down",
     };

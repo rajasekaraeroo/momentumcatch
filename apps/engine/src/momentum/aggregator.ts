@@ -6,6 +6,8 @@ import { Baselines, type BaselineSnapshot } from "./baselines";
 export interface AggregatorConfig {
   baselineWindow: number; // trailing samples (300 live)
   openExclusionSec: number; // SPEC §4 open-poisoning guard
+  /** §12.8 distance decay for D30 weighted imbalance (default 0.25) */
+  imbalanceLambda?: number;
 }
 
 /**
@@ -24,7 +26,7 @@ export class Aggregator {
   private builder(key: string): BarBuilder {
     let b = this.builders.get(key);
     if (!b) {
-      b = new BarBuilder(key);
+      b = new BarBuilder(key, this.cfg.imbalanceLambda);
       this.builders.set(key, b);
     }
     return b;

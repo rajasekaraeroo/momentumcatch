@@ -32,6 +32,8 @@ export interface SnapshotConfig {
   noiseFloor: number; // classification NOISE cutoff (use rearmBelow)
   retVolFloor: number; // std floors against quiet/opening windows
   volStdFloor: number;
+  /** §12.8: bars to re-warm the flow EMA after a D5↔D30 switch (default 10) */
+  flowWarmupSteps?: number;
 }
 
 export interface SnapshotInput {
@@ -69,7 +71,7 @@ export function computeSnapshot(
     cfg.volumeBurstZCap,
     cfg.volStdFloor,
   );
-  const flow = flowImbalance(bars, cfg.windows.fast * 2);
+  const flow = flowImbalance(bars, cfg.windows.fast * 2, cfg.flowWarmupSteps);
   const oi = oiDeltaRate(bars, cfg.windows.oi);
 
   const lastBar = bars[bars.length - 1];

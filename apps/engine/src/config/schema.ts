@@ -85,6 +85,13 @@ export const momentumConfigSchema = z.object({
     deadScoreFloor: z.number().min(0).max(100),
     maxEpisodeSec: z.number().positive(),
   }),
+  focusPool: z.object({
+    enabled: z.boolean(),
+    capacity: z.number().int().positive().max(50),
+    demotionCooldownSec: z.number().nonnegative(),
+    imbalanceLambda: z.number().nonnegative(),
+    emaWarmupSec: z.number().int().nonnegative(),
+  }),
 });
 export type MomentumConfig = z.infer<typeof momentumConfigSchema>;
 

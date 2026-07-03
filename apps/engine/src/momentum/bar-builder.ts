@@ -1,5 +1,5 @@
 import type { Bar, Tick } from "@momentum-scan/shared";
-import { depthImbalance } from "@momentum-scan/shared";
+import { depthImbalance, weightedImbalance } from "@momentum-scan/shared";
 
 /**
  * Per-instrument 1-second bar aggregation (SPEC §4). Ticks are bucketed by
@@ -24,6 +24,7 @@ interface OpenBucket {
   bidAskImbalance?: number;
   spreadPct?: number;
   iv?: number;
+  depthLevels?: number;
 }
 
 /** if more than this many trade-less seconds elapse, treat as a gap instead
@@ -39,7 +40,12 @@ export class BarBuilder {
   private gapPending = false;
   lateTicksDropped = 0;
 
-  constructor(readonly instrumentKey: string) {}
+  constructor(
+    readonly instrumentKey: string,
+    /** §12.8: distance decay for the 30-level weighted imbalance; ticks with
+     *  ≤5 levels always use the plain D5 imbalance regardless */
+    private readonly imbalanceLambda = 0.25,
+  ) {}
 
   markGap(): void {
     // Ticks were lost: drop the open bucket (it may be partial), stop
@@ -110,8 +116,18 @@ export class BarBuilder {
       b.oi = tick.oi;
     }
 
-    const imb = depthImbalance(tick);
-    if (imb !== undefined) b.bidAskImbalance = imb;
+    // §5.5/§12.8: distance-weighted imbalance when the tick carries D30
+    if (tick.depth && (tick.depthLevels ?? 0) > 5) {
+      const w = weightedImbalance(tick.depth, this.imbalanceLambda);
+      if (!w.lowQuality || w.imbalance !== 0) b.bidAskImbalance = w.imbalance;
+      b.depthLevels = tick.depthLevels;
+    } else {
+      const imb = depthImbalance(tick);
+      if (imb !== undefined) {
+        b.bidAskImbalance = imb;
+        b.depthLevels = 5;
+      }
+    }
     if (tick.bidPrice !== undefined && tick.askPrice !== undefined) {
       const mid = (tick.bidPrice + tick.askPrice) / 2;
       if (mid > 0 && tick.askPrice >= tick.bidPrice) {
@@ -182,6 +198,7 @@ export class BarBuilder {
       bidAskImbalance: b.bidAskImbalance,
       spreadPct: b.spreadPct,
       iv: b.iv,
+      depthLevels: b.depthLevels,
     };
     if (this.gapPending) {
       bar.gap = true; // first bar after an outage (SPEC §9)

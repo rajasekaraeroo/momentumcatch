@@ -13,8 +13,10 @@ import { FeedState } from "./feed-state";
 import { isWithinFeedWindow } from "./market-hours";
 import { FeedMetrics } from "./metrics";
 import { loadFeedDecoder, type FeedDecoder } from "./proto";
+import { FocusPoolService } from "../focus-pool/focus-pool.service";
 import { SignalBus } from "../signals/signal-bus";
 import { TICK_STREAM, type TickStreamBus } from "../streams/tick-stream";
+import { ConnectionManager } from "./connection-manager";
 import { InstrumentRegistry } from "../universe/instrument-registry";
 import { UniverseService } from "../universe/universe.service";
 import { TickRecorder } from "./tick-recorder";
@@ -27,6 +29,8 @@ export interface FeedStatus {
   subscriptionCount: number;
   protoAvailable: boolean;
   metrics: Record<string, number | null>;
+  /** §12.8: per-connection states ("A" broad D5, "B" focus pool D30) */
+  connections: Record<string, string>;
 }
 
 /**
@@ -47,6 +51,8 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
 
   private state: FeedState = FeedState.AWAITING_AUTH;
   private source: UpstoxFeedSource | null = null;
+  private sourceB: UpstoxFeedSource | null = null;
+  private readonly manager = new ConnectionManager();
   private decoder: FeedDecoder | null = null;
   private protoError: string | null = null;
   private recorder: TickRecorder | null = null;
@@ -60,6 +66,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     @Inject(UniverseService) private readonly universe: UniverseService,
     @Inject(InstrumentRegistry) private readonly registry: InstrumentRegistry,
     @Inject(SignalBus) private readonly signals: SignalBus,
+    @Inject(FocusPoolService) private readonly focusPool: FocusPoolService,
   ) {
     this.instrumentKeys = config.env.FEED_KEYS
       ? config.env.FEED_KEYS.split(",").map((k) => k.trim()).filter(Boolean)
@@ -72,6 +79,9 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     // intraday universe changes (§2 re-centering) go out as sub/unsub diffs
     this.universe.onSubscriptionDiff = (add, remove) =>
       this.source?.updateSubscriptions(add, remove);
+    // §12.8 focus-pool promotions/demotions go to Connection B
+    this.focusPool.onDiff = (add, remove) =>
+      this.manager.updateSubscriptions("B", add, remove);
   }
 
   /** index keys from config plus the currently resolved option universe */
@@ -90,7 +100,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
 
   async onApplicationShutdown(): Promise<void> {
     if (this.schedulerTimer) clearInterval(this.schedulerTimer);
-    await this.source?.stop();
+    await this.manager.stopAll();
     this.recorder?.close();
   }
 
@@ -100,6 +110,7 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
       subscriptionCount: this.currentKeys().length,
       protoAvailable: this.decoder !== null,
       metrics: this.metrics.snapshot(Date.now()),
+      connections: this.manager.states(),
     };
   }
 
@@ -116,8 +127,9 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     if (!withinWindow) {
       if (this.source) {
         this.log.info("outside market-hours window — disconnecting feed");
-        await this.source.stop();
+        await this.manager.stopAll();
         this.source = null;
+        this.sourceB = null;
       }
       this.setState(FeedState.IDLE_CLOSED);
       return;
@@ -147,18 +159,54 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
     }
 
     this.source = new UpstoxFeedSource({
+      name: "A",
+      mode: "full",
       decoder: this.decoder,
       tokenProvider: () => this.auth.getToken(),
       instrumentKeys: () => this.currentKeys(),
-      onTick: (tick) => this.handleTick(tick),
+      onTick: (tick) => this.handleTick(tick, "A"),
       onState: (s) => this.setState(s),
       metrics: this.metrics,
-      log: this.log,
+      log: this.log.child({ conn: "A" }),
     });
+    this.manager.add("A", this.source, FeedState.CONNECTING);
     await this.source.start();
+
+    // §12.8 Connection B — the full_d30 focus pool (Upstox Plus). Failures
+    // here degrade to D5-only; they never take down Connection A.
+    if (this.focusPool.enabled && !this.sourceB) {
+      this.sourceB = new UpstoxFeedSource({
+        name: "B",
+        mode: "full_d30",
+        decoder: this.decoder,
+        tokenProvider: () => this.auth.getToken(),
+        instrumentKeys: () => this.focusPool.state().slots,
+        onTick: (tick) => this.handleTick(tick, "B"),
+        onState: (s) => {
+          this.manager.setState("B", s);
+          this.focusPool.setConnectionState(s);
+          this.signals.emitFeedState(s, { connection: "B" });
+        },
+        metrics: this.metrics,
+        log: this.log.child({ conn: "B" }),
+      });
+      this.manager.add("B", this.sourceB, FeedState.CONNECTING);
+      await this.sourceB.start();
+    }
   }
 
-  private handleTick(tick: Tick): void {
+  private handleTick(tick: Tick, connection: string = "A"): void {
+    // §12.8: while pooled AND Connection B is live, B is the single source
+    // of truth for that instrument — drop A's duplicate D5 ticks. If B is
+    // down, A's ticks flow again (graceful D5 degradation).
+    if (
+      connection === "A" &&
+      this.focusPool.enabled &&
+      this.focusPool.isPooled(tick.instrumentKey) &&
+      this.manager.stateOf("B") === FeedState.LIVE
+    ) {
+      return;
+    }
     // index prints drive universe resolution + re-centering (SPEC §2, §12.3)
     if (this.registry.get(tick.instrumentKey)?.kind === "index") {
       void this.universe.onIndexTick(tick.instrumentKey, tick.ltp, Date.now());
@@ -180,8 +228,9 @@ export class FeedService implements OnApplicationBootstrap, OnApplicationShutdow
 
   private setState(state: FeedState): void {
     if (state === this.state) return;
+    this.manager.setState("A", state);
     this.log.info({ from: this.state, to: state }, "feed state change");
-    this.signals.emitFeedState(state, { from: this.state });
+    this.signals.emitFeedState(state, { from: this.state, connection: "A" });
     const recovering =
       state === FeedState.LIVE &&
       (this.state === FeedState.RECONNECTING ||

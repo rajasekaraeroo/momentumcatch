@@ -6,6 +6,7 @@ import {
 import type { Server } from "ws";
 import WebSocket from "ws";
 import { FeedService } from "../feed/feed.service";
+import { FocusPoolService } from "../focus-pool/focus-pool.service";
 import { LifecycleService } from "../lifecycle/lifecycle.service";
 import { SignalBus } from "../signals/signal-bus";
 
@@ -26,6 +27,7 @@ export class LiveGateway implements OnApplicationBootstrap {
     @Inject(SignalBus) private readonly bus: SignalBus,
     @Inject(FeedService) private readonly feed: FeedService,
     @Inject(LifecycleService) private readonly lifecycle: LifecycleService,
+    @Inject(FocusPoolService) private readonly focusPool: FocusPoolService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -37,6 +39,7 @@ export class LiveGateway implements OnApplicationBootstrap {
       this.broadcast("health", {
         feed: this.feed.getStatus(),
         episodes: this.lifecycle.activeEpisodes(),
+        focusPool: this.focusPool.state(),
       });
     }, 5_000);
     this.healthTimer.unref();

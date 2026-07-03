@@ -130,10 +130,35 @@ export function oiDeltaRate(bars: Bar[], steps: number): ComponentResult {
   return { name, raw: delta, normalized: norm, available: lastOi !== undefined };
 }
 
-/** §5.5 order-flow imbalance: EMA of per-bar book imbalance over ~`steps`. */
-export function flowImbalance(bars: Bar[], steps: number): ComponentResult {
+/**
+ * §5.5 order-flow imbalance: EMA of per-bar book imbalance over ~`steps`.
+ * §12.8 EMA hygiene: a change in `depthLevels` between bars marks a D5↔D30
+ * switch (focus-pool promotion/demotion) — the smoother restarts at the
+ * switch and reports unavailable for `warmupSteps` bars (never mixes D5 and
+ * D30 states).
+ */
+export function flowImbalance(
+  bars: Bar[],
+  steps: number,
+  warmupSteps = 10,
+): ComponentResult {
   const name = "flowImbalance";
-  const withImb = bars.slice(-3 * steps).filter((b) => b.bidAskImbalance !== undefined);
+  let withImb = bars.slice(-3 * steps).filter((b) => b.bidAskImbalance !== undefined);
+  // cut the window at the most recent depth-basis switch
+  const lastBasis = withImb[withImb.length - 1]?.depthLevels;
+  let switchIdx = -1;
+  for (let i = withImb.length - 1; i >= 0; i--) {
+    if ((withImb[i] as Bar).depthLevels !== lastBasis) {
+      switchIdx = i;
+      break;
+    }
+  }
+  if (switchIdx >= 0) {
+    withImb = withImb.slice(switchIdx + 1);
+    if (withImb.length < warmupSteps) {
+      return { name, raw: 0, normalized: 0, available: false }; // warming
+    }
+  }
   if (withImb.length < 2) return { name, raw: 0, normalized: 0, available: false };
   const alpha = 2 / (steps + 1);
   let ema = withImb[0]?.bidAskImbalance ?? 0;

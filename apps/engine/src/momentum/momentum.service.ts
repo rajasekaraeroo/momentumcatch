@@ -47,6 +47,7 @@ export class MomentumService {
       noiseFloor: m.emission.rearmBelow,
       retVolFloor: m.floors.retVol,
       volStdFloor: m.floors.volStd,
+      flowWarmupSteps: m.focusPool.emaWarmupSec, // 1 step = 1s live (§12.8)
     };
   }
 

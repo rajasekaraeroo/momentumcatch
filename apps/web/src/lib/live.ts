@@ -28,6 +28,13 @@ export interface FeedStatus {
   subscriptionCount: number;
   protoAvailable: boolean;
   metrics: Record<string, number | null>;
+  connections?: Record<string, string>;
+}
+
+export interface FocusPool {
+  slots: string[];
+  capacity: number;
+  connectionState: string;
 }
 
 export interface UniverseInstrument {
@@ -47,6 +54,7 @@ export interface LiveState {
   tape: TapeItem[];
   episodes: Map<string, Episode>;
   feed: FeedStatus | null;
+  focusPool: FocusPool | null;
   instruments: UniverseInstrument[];
   selections: { underlying: string; expiry: string; atm: number }[];
 }
@@ -64,6 +72,7 @@ export function useLive(): LiveState {
     tape: [],
     episodes: new Map(),
     feed: null,
+    focusPool: null,
     instruments: [],
     selections: [],
   });
@@ -106,6 +115,7 @@ export function useLive(): LiveState {
           else s.episodes.set(t.episode.instrumentKey, t.episode);
         } else if (type === "health") {
           s.feed = data.feed;
+          s.focusPool = data.focusPool ?? null;
           s.episodes = new Map(
             (data.episodes as Episode[]).map((e) => [e.instrumentKey, e]),
           );

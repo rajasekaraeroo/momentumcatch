@@ -57,6 +57,7 @@ export class AggregationService
     this.aggregator = new Aggregator({
       baselineWindow: config.momentum.windows.baselineSec,
       openExclusionSec: config.momentum.windows.openExclusionSec,
+      imbalanceLambda: config.momentum.focusPool.imbalanceLambda,
     });
     this.instrumentKeys = config.env.FEED_KEYS
       ? config.env.FEED_KEYS.split(",").map((k) => k.trim()).filter(Boolean)

@@ -105,21 +105,28 @@ describe("normalizeFeedResponse (SPEC §3, §12.5)", () => {
     expect(normalizeFeedResponse(res, RECV_TS)).toEqual([]);
   });
 
-  it("caps depth at 5 levels", () => {
+  it("carries up to 30 depth levels and reports depthLevels (§12.8)", () => {
     const quote = { bidQ: 10, bidP: 1, askQ: 10, askP: 2 };
-    const res: DecodedFeedResponse = {
+    const feed = (n: number): DecodedFeedResponse => ({
       feeds: {
         "SYNTH_FO|SAMPLE_CE": {
           fullFeed: {
             marketFF: {
               ltpc: { ltp: 1.5 },
-              marketLevel: { bidAskQuote: Array(8).fill(quote) },
+              marketLevel: { bidAskQuote: Array(n).fill(quote) },
             },
           },
         },
       },
-    };
-    const [tick] = normalizeFeedResponse(res, RECV_TS);
-    expect(tick?.depth?.bids).toHaveLength(5);
+    });
+    const [d5] = normalizeFeedResponse(feed(5), RECV_TS);
+    expect(d5?.depth?.bids).toHaveLength(5);
+    expect(d5?.depthLevels).toBe(5);
+    const [d30] = normalizeFeedResponse(feed(30), RECV_TS);
+    expect(d30?.depth?.bids).toHaveLength(30);
+    expect(d30?.depthLevels).toBe(30);
+    // hard cap at 30 even if the payload carries more
+    const [over] = normalizeFeedResponse(feed(35), RECV_TS);
+    expect(over?.depth?.bids).toHaveLength(30);
   });
 });

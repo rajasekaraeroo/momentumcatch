@@ -1,5 +1,5 @@
 "use client";
-import type { FeedStatus } from "../lib/live";
+import type { FeedStatus, FocusPool } from "../lib/live";
 import { ENGINE_URL } from "../lib/live";
 
 /** Feed health strip (SPEC §7.4) + login banner (SPEC §12.2). */
@@ -16,9 +16,11 @@ const STATE_COLOR: Record<string, string> = {
 
 export function HealthStrip({
   feed,
+  focusPool,
   wsConnected,
 }: {
   feed: FeedStatus | null;
+  focusPool: FocusPool | null;
   wsConnected: boolean;
 }): JSX.Element {
   const m = feed?.metrics ?? {};
@@ -37,6 +39,17 @@ export function HealthStrip({
           <span className="dot" style={{ background: wsConnected ? "var(--good)" : "var(--bad)" }} />
           live socket {wsConnected ? "connected" : "down"}
         </span>
+        {Object.entries(feed?.connections ?? {}).map(([name, st]) => (
+          <span className="chip" key={name}>
+            <span className="dot" style={{ background: STATE_COLOR[st] ?? "var(--ink-3)" }} />
+            conn {name} {st}
+          </span>
+        ))}
+        {focusPool && focusPool.connectionState !== "DISABLED" && (
+          <span className="chip">
+            focus {focusPool.slots.length}/{focusPool.capacity}
+          </span>
+        )}
         <span className="chip">subs {feed?.subscriptionCount ?? 0}</span>
         <span className="chip">ticks/s {m.ticksPerSecond ?? 0}</span>
         <span className="chip">

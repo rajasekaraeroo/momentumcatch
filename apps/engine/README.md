@@ -3,9 +3,9 @@
 Modules: feed/, momentum/, lifecycle/, alerts/, history/, backtest/, auth/, health/.
 Alert copy lives ONLY in src/alerts/templates.ts (audited by scripts/compliance-check.sh).
 
-## Status: SPEC §11 Stages 1–2 complete
+## Status: SPEC §11 Stages 1–8 complete
 
-Implemented: auth/ (daily OAuth, token in Redis), feed/ (Upstox V3 WebSocket
+Implemented: everything through the backtester. auth/ (daily OAuth, token in Redis), feed/ (Upstox V3 WebSocket
 with redirect handshake, binary subscription frames, protobuf decode,
 reconnect with exponential backoff, tick-starvation escalation, market-hours
 scheduling, tick normalization + dedupe, fan-out to Redis Streams with gap
@@ -38,3 +38,17 @@ Stage 1 subscribes to the underlying index keys from `config/universe.yaml`;
 option-universe resolution from the instruments master (SPEC §12.3) arrives
 with Stage 2. `FEED_KEYS` (comma-separated) overrides the subscription list
 for testing, `FEED_IGNORE_MARKET_HOURS=true` bypasses the schedule gate.
+
+## Backtest (SPEC §13)
+
+```bash
+# real data (needs Upstox Plus login + network):
+pnpm backtest:download --from 2025-07-01 --to 2026-06-30 --underlying NIFTY
+pnpm backtest -- --from 2025-07-01 --to 2026-06-30 --underlying NIFTY
+pnpm backtest -- --from 2025-07-01 --to 2026-06-30 --sweep   # threshold grid, 9-month tune window
+
+# pipeline validation without market access (clearly labeled SYNTHETIC):
+pnpm backtest:synthetic --from 2025-07-01 --to 2026-06-30 --seed 42
+pnpm backtest -- --from 2025-07-01 --to 2026-06-30 --underlying NIFTY --synthetic
+# report lands in reports/{run-id}.html + .json
+```

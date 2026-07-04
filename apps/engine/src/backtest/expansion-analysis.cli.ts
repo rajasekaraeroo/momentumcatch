@@ -80,13 +80,14 @@ async function main(): Promise<void> {
       by: { type: "string", default: "" }, // bucket by a component decile instead of score band
       compression: { type: "boolean", default: false }, // restrict to low prior slow-velocity minutes
       "expiry-only": { type: "boolean", default: false }, // restrict to contracts expiring that session
+      cutoff: { type: "string", default: "15:35" }, // end the daily window at HH:MM IST (e.g. 15:00)
       config: { type: "string", default: "config/backtest.yaml" },
     },
     args: process.argv.slice(2).filter((a) => a !== "--"),
   });
   if (!values.from || !values.to) {
     console.error(
-      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression] [--expiry-only]",
+      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression] [--expiry-only] [--cutoff 15:00]",
     );
     process.exit(2);
   }
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
   const compressionOn = Boolean(values.compression);
   const expiryOnly = Boolean(values["expiry-only"]);
   const openMin = parseHhMm("09:15");
+  const cutoffMin = parseHhMm(values.cutoff as string);
 
   const config = new AppConfigService();
   const bt = loadBacktestConfig(config.repoRoot, values.config as string);
@@ -124,7 +126,7 @@ async function main(): Promise<void> {
     Date.parse(values.to as string) + 86_400_000,
   );
   log.info(
-    { sessions: sessions.length, horizon, multiple, atmStrikes, tuneToIso, expiryOnly, byName: byName || undefined, compressionOn },
+    { sessions: sessions.length, horizon, multiple, atmStrikes, tuneToIso, expiryOnly, cutoff: values.cutoff, byName: byName || undefined, compressionOn },
     "premium-expansion analysis starting (descriptive — not a signal)",
   );
 
@@ -157,8 +159,14 @@ async function main(): Promise<void> {
     }
     if (instruments.size === 0) continue;
 
-    // feed = near-ATM options + the index; derive oiDelta chronologically
-    const feed = candles.filter((c) => instruments.has(c.instrumentKey) || c.instrumentKey === indexKey);
+    // feed = near-ATM options + the index, within the [09:15, cutoff) window
+    // (cutoff < 15:30 trims the volatile last minutes, e.g. expiry-day blips);
+    // bounding the feed makes every downstream series/label/snapshot respect it.
+    const feed = candles.filter((c) => {
+      if (!(instruments.has(c.instrumentKey) || c.instrumentKey === indexKey)) return false;
+      const m = toIst(c.ts).minutesIst;
+      return m >= openMin && m < cutoffMin;
+    });
     const prevOi = new Map<string, number>();
     for (const c of feed) {
       if (c.oi !== undefined) {
@@ -289,6 +297,7 @@ async function main(): Promise<void> {
     byName,
     compressionOn,
     expiryOnly,
+    cutoff: values.cutoff as string,
     tune,
     holdout,
   });
@@ -368,6 +377,7 @@ function renderReport(p: {
   byName: string;
   compressionOn: boolean;
   expiryOnly: boolean;
+  cutoff: string;
   tune: Accumulators;
   holdout: Accumulators;
 }): string {
@@ -422,7 +432,7 @@ function renderReport(p: {
     .grey{background:#f2f2f2;border-left:4px solid #999;padding:1rem;margin:1rem 0;font-size:.92rem;color:#333}
   </style></head><body>
   <h1>${esc(p.underlying)} — premium-expansion analysis</h1>
-  <p>${esc(p.from)} → ${esc(p.to)} · near-ATM ±${p.atmStrikes} strikes · move = ×${p.multiple} within ${p.horizon} min · tune/holdout split at ${esc(p.tuneToIso)}${p.expiryOnly ? " · <b>expiry-day contracts only</b>" : ""}${p.compressionOn ? " · compression filter on" : ""}.</p>
+  <p>${esc(p.from)} → ${esc(p.to)} · daily window 09:15–${esc(p.cutoff)} IST · near-ATM ±${p.atmStrikes} strikes · move = ×${p.multiple} within ${p.horizon} min · tune/holdout split at ${esc(p.tuneToIso)}${p.expiryOnly ? " · <b>expiry-day contracts only</b>" : ""}${p.compressionOn ? " · compression filter on" : ""}.</p>
   <div class="grey"><b>What this is — and is not.</b> This page <i>describes</i> how often near-ATM option premiums doubled after the momentum indicator read high, versus a random minute (the base rate). <b>Lift</b> is the ratio; <b>~1 means no edge</b>. A finding is only credible if the lift and capture hold in the <b>holdout</b> section as well as the tune section. Even then this is a description of past market behavior computed on 1-minute closes with the live depth/flow signal switched off and no fills or slippage modelled — it is <b>not</b> a recommendation and nothing here describes when to act. Reproducible-live numbers use the causal score-crossing; the "ideal" trough is hindsight and cannot be traded.</div>
   ${section("Tune window", p.tune)}
   ${section("Holdout window", p.holdout)}

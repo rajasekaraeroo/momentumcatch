@@ -493,6 +493,9 @@ Two optional flags let you look past the composite score:
 - `--expiry-only` — restrict to **contracts expiring that session** (the
   expiry-day regime, where premiums move and decay fastest). Sessions with no
   contract expiring that day are skipped automatically.
+- `--cutoff 15:00` — **end the daily window early** (default 15:35 = full
+  session). Use `15:00` to drop the last half hour, where expiry-day premiums
+  decaying toward zero produce large but untradeable percentage blips.
 
 Example — is a rising open-interest reading, during compression, followed by a
 50% move more than chance, **and does it hold in the holdout**?

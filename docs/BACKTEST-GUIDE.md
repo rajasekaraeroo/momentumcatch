@@ -439,6 +439,47 @@ feature. Two ways to fix:
 
 ---
 
+# Advanced (research): the premium-expansion analysis
+
+This is an extra, **descriptive** study — not part of the normal report, and
+**not a trading signal**. It answers one question: *when the momentum score
+reads high, how much more often does a near-ATM option premium at least
+double soon after, compared with a random minute?* That ratio is called
+**lift**.
+
+📍 **WHERE:** the command window (after you've downloaded that instrument).
+⌨️ **WHAT:** (example for BANKNIFTY)
+```
+docker compose exec engine sh -c "cd /app/apps/engine && pnpm backtest:expansion --from 2025-07-01 --to 2026-06-30 --underlying BANKNIFTY --horizon 30 --multiple 2 --atm-strikes 3"
+```
+- `--horizon 30` = look 30 minutes forward · `--multiple 2` = "doubling" ·
+  `--atm-strikes 3` = ATM ± 3 strikes.
+
+⏰ **WHEN:** any time after the download. Takes a few minutes.
+✅ **Worked when:** tables print in the window **and** a report is saved to
+`reports/BANKNIFTY-expansion.html` (double-click to open).
+
+👀 **How to read it — in this order:**
+1. **Base rate** — the % of near-ATM minutes that double anyway. This is your
+   yardstick.
+2. **Lift by score band** — does the top band (85–100) show a **lift well
+   above 1**? Lift ≈ 1 means the score tells you nothing; lift of 3–5×
+   means high-score minutes really do precede doublings more than chance.
+3. **Holdout section** — the same tables on months the tuning never saw. **If
+   the lift is big in "Tune" but ~1 in "Holdout", it was luck, not an edge.**
+   Only a lift that survives the holdout is worth anything.
+4. **Capture of the ideal move** — even with lift, how much of the trough→peak
+   move is left by the time the score actually crosses (you always arrive
+   late), and how much is handed back by the fading glyph. Small capture =
+   the move looks great in hindsight but little of it is reachable live.
+
+⚠️ Everything here is computed on 1-minute closes with the live depth/flow
+signal off and **no fills or slippage** — so treat any positive result as the
+*most optimistic* case, and as a description of past behavior only, never a
+recommendation.
+
+---
+
 # The one caution
 
 This report describes what **followed** the flagged moments at 1-minute

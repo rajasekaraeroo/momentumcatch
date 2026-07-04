@@ -10,7 +10,8 @@
     "replay": "tsx src/replay/replay.cli.ts",
     "backtest": "tsx src/backtest/backtest.cli.ts",
     "backtest:download": "tsx src/history/download.cli.ts",
-    "backtest:synthetic": "tsx src/history/synthetic.cli.ts"
+    "backtest:synthetic": "tsx src/history/synthetic.cli.ts",
+    "backtest:expansion": "tsx src/backtest/expansion-analysis.cli.ts"
   },
   "dependencies": {
     "@momentum-scan/shared": "workspace:*",

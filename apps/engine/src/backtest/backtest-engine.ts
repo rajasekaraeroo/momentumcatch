@@ -44,6 +44,9 @@ export interface BacktestHooks {
   onEvent?: (event: MomentumEvent, snapshot: SnapshotResult) => void;
   onTransition?: (t: LifecycleTransition) => void;
   onEpisodeClosed?: (closed: ClosedEpisode) => void;
+  /** every evaluated option-minute (post-warmup), causal — for descriptive
+   *  analysis passes that need the score at all minutes, not only emissions. */
+  onSnapshot?: (snapshot: SnapshotResult, meta: BtInstrument) => void;
 }
 
 const NAIVE_DECAY_SCORE = 40; // §5's simple rule, kept for the §14.5 report
@@ -186,6 +189,9 @@ export class BacktestEngine {
       },
       this.snapshotCfg,
     );
+
+    // descriptive observation hook (causal — snapshot uses candles ≤ ts only)
+    this.hooks.onSnapshot?.(snapshot, meta);
 
     // lifecycle first: an existing episode steps on every candle
     if (s.machine) {

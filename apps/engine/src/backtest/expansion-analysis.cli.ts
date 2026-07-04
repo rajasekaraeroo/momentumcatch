@@ -79,13 +79,14 @@ async function main(): Promise<void> {
       lead: { type: "string", default: "30" }, // trough lookback (minutes)
       by: { type: "string", default: "" }, // bucket by a component decile instead of score band
       compression: { type: "boolean", default: false }, // restrict to low prior slow-velocity minutes
+      "expiry-only": { type: "boolean", default: false }, // restrict to contracts expiring that session
       config: { type: "string", default: "config/backtest.yaml" },
     },
     args: process.argv.slice(2).filter((a) => a !== "--"),
   });
   if (!values.from || !values.to) {
     console.error(
-      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression]",
+      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression] [--expiry-only]",
     );
     process.exit(2);
   }
@@ -95,6 +96,7 @@ async function main(): Promise<void> {
   const lead = Number(values.lead);
   const byName = (values.by as string) || "";
   const compressionOn = Boolean(values.compression);
+  const expiryOnly = Boolean(values["expiry-only"]);
   const openMin = parseHhMm("09:15");
 
   const config = new AppConfigService();
@@ -122,7 +124,7 @@ async function main(): Promise<void> {
     Date.parse(values.to as string) + 86_400_000,
   );
   log.info(
-    { sessions: sessions.length, horizon, multiple, atmStrikes, tuneToIso },
+    { sessions: sessions.length, horizon, multiple, atmStrikes, tuneToIso, expiryOnly, byName: byName || undefined, compressionOn },
     "premium-expansion analysis starting (descriptive — not a signal)",
   );
 
@@ -143,10 +145,12 @@ async function main(): Promise<void> {
     }
     if (idxRef <= 0) continue; // no usable index reference this session
 
-    // near-ATM option instruments only (ATM ± atmStrikes)
+    // near-ATM option instruments only (ATM ± atmStrikes); with --expiry-only,
+    // keep only contracts whose expiry IS this session (expiry-day regime)
     const instruments = new Map<string, BtInstrument>();
     for (const [key, meta] of contracts) {
       if (key.startsWith("INDEX|") || meta.side === undefined || meta.strike === undefined) continue;
+      if (expiryOnly && meta.expiry !== day) continue;
       if (Math.abs(meta.strike - idxRef) <= atmStrikes * strikeStep) {
         instruments.set(key, { key, side: meta.side, underlyingKey: indexKey, strike: meta.strike, expiry: meta.expiry });
       }
@@ -284,10 +288,11 @@ async function main(): Promise<void> {
     tuneToIso,
     byName,
     compressionOn,
+    expiryOnly,
     tune,
     holdout,
   });
-  printConsole(underlying, byName, compressionOn, tune, holdout);
+  printConsole(underlying, byName, compressionOn, expiryOnly, tune, holdout);
 
   const dir = path.join(config.repoRoot, "reports");
   fs.mkdirSync(dir, { recursive: true });
@@ -301,6 +306,7 @@ function printConsole(
   underlying: string,
   byName: string,
   compressionOn: boolean,
+  expiryOnly: boolean,
   tune: Accumulators,
   holdout: Accumulators,
 ): void {
@@ -308,7 +314,9 @@ function printConsole(
     ["TUNE", tune],
     ["HOLDOUT", holdout],
   ] as const) {
-    const filter = compressionOn ? " · COMPRESSION filter on (low prior slow-velocity minutes only)" : "";
+    const filter =
+      (expiryOnly ? " · EXPIRY-DAY contracts only" : "") +
+      (compressionOn ? " · COMPRESSION filter on (low prior slow-velocity minutes only)" : "");
     console.log(`\n=== ${underlying} — ${name}  (base rate ${acc.lift.baseRatePct().toFixed(2)}% of near-ATM minutes precede a move${filter}) ===`);
     if (byName) {
       console.log(`Lift by ${byName} decile (D01 lowest → D10 highest; lift ≈ 1 ⇒ no discrimination):`);
@@ -359,6 +367,7 @@ function renderReport(p: {
   tuneToIso: string;
   byName: string;
   compressionOn: boolean;
+  expiryOnly: boolean;
   tune: Accumulators;
   holdout: Accumulators;
 }): string {
@@ -413,7 +422,7 @@ function renderReport(p: {
     .grey{background:#f2f2f2;border-left:4px solid #999;padding:1rem;margin:1rem 0;font-size:.92rem;color:#333}
   </style></head><body>
   <h1>${esc(p.underlying)} — premium-expansion analysis</h1>
-  <p>${esc(p.from)} → ${esc(p.to)} · near-ATM ±${p.atmStrikes} strikes · doubling = ×${p.multiple} within ${p.horizon} min · tune/holdout split at ${esc(p.tuneToIso)}.</p>
+  <p>${esc(p.from)} → ${esc(p.to)} · near-ATM ±${p.atmStrikes} strikes · move = ×${p.multiple} within ${p.horizon} min · tune/holdout split at ${esc(p.tuneToIso)}${p.expiryOnly ? " · <b>expiry-day contracts only</b>" : ""}${p.compressionOn ? " · compression filter on" : ""}.</p>
   <div class="grey"><b>What this is — and is not.</b> This page <i>describes</i> how often near-ATM option premiums doubled after the momentum indicator read high, versus a random minute (the base rate). <b>Lift</b> is the ratio; <b>~1 means no edge</b>. A finding is only credible if the lift and capture hold in the <b>holdout</b> section as well as the tune section. Even then this is a description of past market behavior computed on 1-minute closes with the live depth/flow signal switched off and no fills or slippage modelled — it is <b>not</b> a recommendation and nothing here describes when to act. Reproducible-live numbers use the causal score-crossing; the "ideal" trough is hindsight and cannot be traded.</div>
   ${section("Tune window", p.tune)}
   ${section("Holdout window", p.holdout)}

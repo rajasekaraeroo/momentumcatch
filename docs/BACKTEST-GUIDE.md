@@ -490,6 +490,9 @@ Two optional flags let you look past the composite score:
 - `--compression` — restrict the whole table to **quiet/compressed minutes**
   (where prior slow-velocity is below its baseline), to test the "explosions
   come from compression" idea.
+- `--expiry-only` — restrict to **contracts expiring that session** (the
+  expiry-day regime, where premiums move and decay fastest). Sessions with no
+  contract expiring that day are skipped automatically.
 
 Example — is a rising open-interest reading, during compression, followed by a
 50% move more than chance, **and does it hold in the holdout**?

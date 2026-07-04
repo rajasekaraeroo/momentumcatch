@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   captureRatio,
   ComponentSeparation,
+  decileLift,
   labelDoublings,
   LiftTable,
   RunningMean,
@@ -108,6 +109,30 @@ describe("captureRatio (fraction of the ideal trough→peak move reachable)", ()
     expect(captureRatio(100, 140, 240)).toBeCloseTo((240 - 140) / (240 - 100), 5);
     expect(captureRatio(100, 260, 250)).toBe(0); // crossing above peak → clipped
     expect(captureRatio(100, 100, 100)).toBe(0); // no move → 0
+  });
+});
+
+describe("decileLift (lift by decile of an arbitrary reading)", () => {
+  it("puts the doublers in the top deciles when value predicts doubling", () => {
+    // value 0..99; doubled only for the top 20 values → D09/D10 carry the hits
+    const obs = Array.from({ length: 100 }, (_, i) => ({ value: i, doubled: i >= 80 }));
+    const rows = decileLift(obs);
+    expect(rows).toHaveLength(10);
+    expect(rows[0]?.label).toBe("D01");
+    expect(rows[9]?.label).toBe("D10");
+    // base rate 20% → top two deciles are all doublers (lift 5×), rest zero
+    expect(rows[9]?.hitRatePct).toBeCloseTo(100, 5);
+    expect(rows[8]?.hitRatePct).toBeCloseTo(100, 5);
+    expect(rows[9]?.lift).toBeCloseTo(5, 5);
+    expect(rows[0]?.lift).toBeCloseTo(0, 5);
+  });
+  it("is flat (lift ≈ 1 everywhere) when value carries no information", () => {
+    const obs = Array.from({ length: 100 }, (_, i) => ({ value: i, doubled: i % 2 === 0 }));
+    const rows = decileLift(obs);
+    for (const r of rows) expect(r.lift).toBeCloseTo(1, 5);
+  });
+  it("returns nothing for an empty sample", () => {
+    expect(decileLift([])).toEqual([]);
   });
 });
 

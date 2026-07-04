@@ -478,6 +478,29 @@ signal off and **no fills or slippage** — so treat any positive result as the
 *most optimistic* case, and as a description of past behavior only, never a
 recommendation.
 
+### Digging into one reading (`--by`) or one condition (`--compression`)
+
+Two optional flags let you look past the composite score:
+
+- `--by <component>` — bucket the minutes by **that component's decile**
+  (D01 = lowest tenth of the reading, D10 = highest) instead of by score band.
+  Useful when one component (e.g. `oiDeltaRate`) looks more informative than
+  the blended score. Component names: `oiDeltaRate`, `volumeBurst`,
+  `velocity`, `velocitySlow`, `acceleration`, `underlyingVelocity`.
+- `--compression` — restrict the whole table to **quiet/compressed minutes**
+  (where prior slow-velocity is below its baseline), to test the "explosions
+  come from compression" idea.
+
+Example — is a rising open-interest reading, during compression, followed by a
+50% move more than chance, **and does it hold in the holdout**?
+```
+docker compose exec engine sh -c "cd /app/apps/engine && pnpm backtest:expansion --from 2025-07-01 --to 2026-06-30 --underlying NIFTY --horizon 30 --multiple 1.5 --by oiDeltaRate --compression"
+```
+Read the **D10 decile lift, Tune vs Holdout**: a clear climb toward D10 that
+*survives the holdout* on more than one instrument is the only thing worth
+carrying further — and even then only into a fills/slippage test, never
+straight to a live market.
+
 ---
 
 # The one caution

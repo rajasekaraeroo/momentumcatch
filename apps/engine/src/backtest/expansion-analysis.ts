@@ -172,6 +172,26 @@ export function captureRatio(
   return Math.max(0, Math.min(1, captured / ideal));
 }
 
+/**
+ * Lift by decile of an arbitrary reading (e.g. oiDeltaRate) rather than by
+ * score band. Splits the observations into 10 equal-count buckets ordered
+ * low→high (D01 = lowest tenth, D10 = highest) and reports, per decile, how
+ * often the doubling label held vs the base rate. A monotone climb toward D10
+ * that survives the holdout is the signature of an informative reading.
+ */
+export function decileLift(obs: { value: number; doubled: boolean }[]): LiftRow[] {
+  const n = obs.length;
+  if (n === 0) return [];
+  const sorted = [...obs].sort((a, b) => a.value - b.value);
+  const table = new LiftTable();
+  sorted.forEach((o, i) => {
+    const d = Math.min(9, Math.floor((i / n) * 10));
+    table.add(`D${String(d + 1).padStart(2, "0")}`, o.doubled);
+  });
+  const order = Array.from({ length: 10 }, (_, i) => `D${String(i + 1).padStart(2, "0")}`);
+  return table.rows(order);
+}
+
 /** running mean of a stream of numbers (for averaging capture/lead/giveback) */
 export class RunningMean {
   private n = 0;

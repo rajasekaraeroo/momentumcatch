@@ -13,6 +13,7 @@ import { loadBacktestConfig } from "./config";
 import {
   captureRatio,
   ComponentSeparation,
+  decileLift,
   labelDoublings,
   LiftTable,
   RunningMean,
@@ -49,6 +50,8 @@ interface Accumulators {
   crossings: number;
   crossingsDoubled: number;
   fadingGiveback: RunningMean;
+  /** (value, doubled) pairs for the --by component, for decile lift */
+  byObs: { value: number; doubled: boolean }[];
 }
 
 function newAcc(): Accumulators {
@@ -60,6 +63,7 @@ function newAcc(): Accumulators {
     crossings: 0,
     crossingsDoubled: 0,
     fadingGiveback: new RunningMean(),
+    byObs: [],
   };
 }
 
@@ -73,13 +77,15 @@ async function main(): Promise<void> {
       multiple: { type: "string", default: "2" }, // "doubling" = ×2
       "atm-strikes": { type: "string", default: "3" }, // ATM ± N
       lead: { type: "string", default: "30" }, // trough lookback (minutes)
+      by: { type: "string", default: "" }, // bucket by a component decile instead of score band
+      compression: { type: "boolean", default: false }, // restrict to low prior slow-velocity minutes
       config: { type: "string", default: "config/backtest.yaml" },
     },
     args: process.argv.slice(2).filter((a) => a !== "--"),
   });
   if (!values.from || !values.to) {
     console.error(
-      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3]",
+      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression]",
     );
     process.exit(2);
   }
@@ -87,6 +93,8 @@ async function main(): Promise<void> {
   const multiple = Number(values.multiple);
   const atmStrikes = Number(values["atm-strikes"]);
   const lead = Number(values.lead);
+  const byName = (values.by as string) || "";
+  const compressionOn = Boolean(values.compression);
   const openMin = parseHhMm("09:15");
 
   const config = new AppConfigService();
@@ -200,10 +208,20 @@ async function main(): Promise<void> {
         onSnapshot: (snap, meta) => {
           const ix = tsIndex.get(meta.key)?.get(snap.ts);
           if (ix === undefined) return;
+          // optional compression gate: keep only minutes where prior slow
+          // velocity is below its baseline (a quiet/compressed premium)
+          if (compressionOn) {
+            const vs = snap.components.find((c) => c.name === "velocitySlow");
+            if (!vs || !vs.available || vs.normalized >= 0) return;
+          }
           const doubled = labels.get(meta.key)?.[ix] ?? false;
           acc.lift.add(scoreBand(snap.score), doubled);
           for (const comp of snap.components) {
             if (comp.available) acc.sep.add(comp.name, comp.normalized, doubled);
+          }
+          if (byName) {
+            const bc = snap.components.find((c) => c.name === byName);
+            if (bc && bc.available) acc.byObs.push({ value: bc.normalized, doubled });
           }
         },
         // score-crossing = reproducible-live analogue; measure capture + lead
@@ -264,10 +282,12 @@ async function main(): Promise<void> {
     multiple,
     atmStrikes,
     tuneToIso,
+    byName,
+    compressionOn,
     tune,
     holdout,
   });
-  printConsole(underlying, tune, holdout);
+  printConsole(underlying, byName, compressionOn, tune, holdout);
 
   const dir = path.join(config.repoRoot, "reports");
   fs.mkdirSync(dir, { recursive: true });
@@ -277,18 +297,36 @@ async function main(): Promise<void> {
   await pool.end();
 }
 
-function printConsole(underlying: string, tune: Accumulators, holdout: Accumulators): void {
+function printConsole(
+  underlying: string,
+  byName: string,
+  compressionOn: boolean,
+  tune: Accumulators,
+  holdout: Accumulators,
+): void {
   for (const [name, acc] of [
     ["TUNE", tune],
     ["HOLDOUT", holdout],
   ] as const) {
-    console.log(`\n=== ${underlying} — ${name}  (base rate ${acc.lift.baseRatePct().toFixed(2)}% of near-ATM minutes precede a doubling) ===`);
+    const filter = compressionOn ? " · COMPRESSION filter on (low prior slow-velocity minutes only)" : "";
+    console.log(`\n=== ${underlying} — ${name}  (base rate ${acc.lift.baseRatePct().toFixed(2)}% of near-ATM minutes precede a move${filter}) ===`);
+    if (byName) {
+      console.log(`Lift by ${byName} decile (D01 lowest → D10 highest; lift ≈ 1 ⇒ no discrimination):`);
+      console.table(
+        decileLift(acc.byObs).map((r) => ({
+          decile: r.label,
+          minutes: r.fires,
+          movedPct: Number(r.hitRatePct.toFixed(2)),
+          lift: Number(r.lift.toFixed(2)),
+        })),
+      );
+    }
     console.log("Lift by momentum-score band (lift ≈ 1 ⇒ no discrimination):");
     console.table(
       acc.lift.rows(SCORE_BAND_ORDER).map((r) => ({
         scoreBand: r.label,
         minutes: r.fires,
-        doubledPct: Number(r.hitRatePct.toFixed(2)),
+        movedPct: Number(r.hitRatePct.toFixed(2)),
         lift: Number(r.lift.toFixed(2)),
       })),
     );
@@ -319,11 +357,24 @@ function renderReport(p: {
   multiple: number;
   atmStrikes: number;
   tuneToIso: string;
+  byName: string;
+  compressionOn: boolean;
   tune: Accumulators;
   holdout: Accumulators;
 }): string {
   const esc = (s: string): string => s.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m] as string));
   const section = (name: string, acc: Accumulators): string => {
+    const decileBlock = p.byName
+      ? `<h3>Lift by ${esc(p.byName)} decile (D01 lowest → D10 highest)</h3>
+    <table><thead><tr><th>decile</th><th>minutes</th><th>moved</th><th>lift</th></tr></thead><tbody>${decileLift(
+      acc.byObs,
+    )
+      .map(
+        (r) =>
+          `<tr><td>${r.label}</td><td>${r.fires}</td><td>${r.hitRatePct.toFixed(2)}%</td><td>${r.lift.toFixed(2)}×</td></tr>`,
+      )
+      .join("")}</tbody></table>`
+      : "";
     const liftRows = acc.lift
       .rows(SCORE_BAND_ORDER)
       .map(
@@ -341,7 +392,8 @@ function renderReport(p: {
     const crossPct = acc.crossings > 0 ? (100 * acc.crossingsDoubled) / acc.crossings : 0;
     return `
     <h2>${name}</h2>
-    <p>Base rate: <b>${acc.lift.baseRatePct().toFixed(2)}%</b> of near-ATM option minutes are followed by a premium doubling within ${p.horizon} minutes.</p>
+    <p>Base rate: <b>${acc.lift.baseRatePct().toFixed(2)}%</b> of near-ATM option minutes are followed by a ×${p.multiple} premium move within ${p.horizon} minutes${p.compressionOn ? " (compression filter on)" : ""}.</p>
+    ${decileBlock}
     <h3>Lift by momentum-score band</h3>
     <table><thead><tr><th>score band</th><th>minutes</th><th>doubled</th><th>lift</th></tr></thead><tbody>${liftRows}</tbody></table>
     <h3>Component separation (avg normalized reading)</h3>

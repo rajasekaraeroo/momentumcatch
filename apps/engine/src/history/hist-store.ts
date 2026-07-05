@@ -101,7 +101,10 @@ export class HistStore {
     const from = new Date(`${sessionDate}T00:00:00+05:30`).getTime();
     const to = from + 24 * 3600_000;
     const r = await this.pool.query(
-      `SELECT expired_instrument_key AS k, underlying, strike, side, expiry,
+      // format expiry to a YYYY-MM-DD string in SQL — the pg driver otherwise
+      // returns a Date object that String()/.slice() mangle into a weekday
+      `SELECT expired_instrument_key AS k, underlying, strike, side,
+              to_char(expiry, 'YYYY-MM-DD') AS expiry,
               ts, o, h, l, c, vol, oi
        FROM bar_1m_hist
        WHERE underlying = $1 AND ts >= $2 AND ts < $3

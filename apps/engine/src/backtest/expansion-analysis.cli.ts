@@ -14,12 +14,15 @@ import {
   captureRatio,
   ComponentSeparation,
   decileLift,
+  decileOutcomes,
   labelDoublings,
   LiftTable,
   RunningMean,
   scoreBand,
   SCORE_BAND_ORDER,
+  summarizeOutcomes,
   type ContractMinute,
+  type OutcomeStats,
 } from "./expansion-analysis";
 
 /**
@@ -52,6 +55,10 @@ interface Accumulators {
   fadingGiveback: RunningMean;
   /** (value, doubled) pairs for the --by component, for decile lift */
   byObs: { value: number; doubled: boolean }[];
+  /** forward long-premium returns (fractions) for the EV mode */
+  evAll: number[];
+  evByScore: Map<string, number[]>;
+  evObs: { value: number; ret: number }[]; // for EV by --by decile
 }
 
 function newAcc(): Accumulators {
@@ -64,6 +71,9 @@ function newAcc(): Accumulators {
     crossingsDoubled: 0,
     fadingGiveback: new RunningMean(),
     byObs: [],
+    evAll: [],
+    evByScore: new Map(),
+    evObs: [],
   };
 }
 
@@ -81,13 +91,15 @@ async function main(): Promise<void> {
       compression: { type: "boolean", default: false }, // restrict to low prior slow-velocity minutes
       "expiry-only": { type: "boolean", default: false }, // restrict to contracts expiring that session
       cutoff: { type: "string", default: "15:35" }, // end the daily window at HH:MM IST (e.g. 15:00)
+      ev: { type: "boolean", default: false }, // expected-value tables (full return distribution)
+      cost: { type: "string", default: "0" }, // round-trip cost % subtracted from every hold
       config: { type: "string", default: "config/backtest.yaml" },
     },
     args: process.argv.slice(2).filter((a) => a !== "--"),
   });
   if (!values.from || !values.to) {
     console.error(
-      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression] [--expiry-only] [--cutoff 15:00]",
+      "usage: pnpm backtest:expansion --from YYYY-MM-DD --to YYYY-MM-DD --underlying BANKNIFTY [--horizon 30] [--multiple 2] [--atm-strikes 3] [--by oiDeltaRate] [--compression] [--expiry-only] [--cutoff 15:00] [--ev] [--cost 2]",
     );
     process.exit(2);
   }
@@ -98,6 +110,8 @@ async function main(): Promise<void> {
   const byName = (values.by as string) || "";
   const compressionOn = Boolean(values.compression);
   const expiryOnly = Boolean(values["expiry-only"]);
+  const evOn = Boolean(values.ev);
+  const costFrac = Number(values.cost) / 100; // % → fraction, subtracted per hold
   const openMin = parseHhMm("09:15");
   const cutoffMin = parseHhMm(values.cutoff as string);
 
@@ -231,9 +245,23 @@ async function main(): Promise<void> {
           for (const comp of snap.components) {
             if (comp.available) acc.sep.add(comp.name, comp.normalized, doubled);
           }
-          if (byName) {
-            const bc = snap.components.find((c) => c.name === byName);
-            if (bc && bc.available) acc.byObs.push({ value: bc.normalized, doubled });
+          const byComp = byName ? snap.components.find((c) => c.name === byName) : undefined;
+          if (byComp && byComp.available) acc.byObs.push({ value: byComp.normalized, doubled });
+          // EV: forward long-premium return of buying at this close and marking
+          // out `horizon` minutes later (fixed-horizon, close-to-close, minus cost)
+          if (evOn) {
+            const s = series.get(meta.key);
+            const entry = s?.[ix]?.c ?? 0;
+            if (s && entry > 0) {
+              const exitIx = Math.min(s.length - 1, ix + horizon);
+              const ret = (s[exitIx] as ContractMinute).c / entry - 1 - costFrac;
+              acc.evAll.push(ret);
+              const band = scoreBand(snap.score);
+              const arr = acc.evByScore.get(band) ?? [];
+              arr.push(ret);
+              acc.evByScore.set(band, arr);
+              if (byComp && byComp.available) acc.evObs.push({ value: byComp.normalized, ret });
+            }
           }
         },
         // score-crossing = reproducible-live analogue; measure capture + lead
@@ -298,10 +326,12 @@ async function main(): Promise<void> {
     compressionOn,
     expiryOnly,
     cutoff: values.cutoff as string,
+    evOn,
+    cost: Number(values.cost),
     tune,
     holdout,
   });
-  printConsole(underlying, byName, compressionOn, expiryOnly, tune, holdout);
+  printConsole(underlying, byName, evOn, Number(values.cost), compressionOn, expiryOnly, tune, holdout);
 
   const dir = path.join(config.repoRoot, "reports");
   fs.mkdirSync(dir, { recursive: true });
@@ -311,9 +341,23 @@ async function main(): Promise<void> {
   await pool.end();
 }
 
+function evRow(label: string, s: OutcomeStats): Record<string, number | string> {
+  return {
+    bucket: label,
+    holds: s.n,
+    meanPct: Number(s.meanPct.toFixed(3)),
+    medianPct: Number(s.medianPct.toFixed(3)),
+    winRatePct: Number(s.winRatePct.toFixed(1)),
+    p10Pct: Number(s.p10Pct.toFixed(2)),
+    p90Pct: Number(s.p90Pct.toFixed(2)),
+  };
+}
+
 function printConsole(
   underlying: string,
   byName: string,
+  evOn: boolean,
+  cost: number,
   compressionOn: boolean,
   expiryOnly: boolean,
   tune: Accumulators,
@@ -363,6 +407,24 @@ function printConsole(
         `avg lead after trough: ${acc.leadMinutes.mean().toFixed(1)} min · ` +
         `avg fading giveback: ${(100 * acc.fadingGiveback.mean()).toFixed(1)}%`,
     );
+    if (evOn) {
+      const overall = summarizeOutcomes(acc.evAll);
+      console.log(
+        `\nEXPECTED VALUE — buy at close, hold to the horizon, close-to-close, cost ${cost}%/round-trip. ` +
+          `meanPct is the EV; ≤ 0 ⇒ not tradeable.`,
+      );
+      console.log(`Overall EV of a random near-ATM hold: ${overall.meanPct.toFixed(3)}% (win-rate ${overall.winRatePct.toFixed(1)}%, n=${overall.n})`);
+      console.log("EV by momentum-score band:");
+      console.table(
+        SCORE_BAND_ORDER.filter((b) => acc.evByScore.has(b)).map((b) =>
+          evRow(b, summarizeOutcomes(acc.evByScore.get(b) as number[])),
+        ),
+      );
+      if (byName) {
+        console.log(`EV by ${byName} decile (D01 lowest → D10 highest):`);
+        console.table(decileOutcomes(acc.evObs).map((r) => evRow(r.label, r.stats)));
+      }
+    }
   }
 }
 
@@ -378,10 +440,14 @@ function renderReport(p: {
   compressionOn: boolean;
   expiryOnly: boolean;
   cutoff: string;
+  evOn: boolean;
+  cost: number;
   tune: Accumulators;
   holdout: Accumulators;
 }): string {
   const esc = (s: string): string => s.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m] as string));
+  const evStatRow = (label: string, s: OutcomeStats): string =>
+    `<tr><td>${esc(label)}</td><td>${s.n}</td><td>${s.meanPct.toFixed(3)}%</td><td>${s.medianPct.toFixed(2)}%</td><td>${s.winRatePct.toFixed(1)}%</td><td>${s.p10Pct.toFixed(1)}%</td><td>${s.p90Pct.toFixed(1)}%</td></tr>`;
   const section = (name: string, acc: Accumulators): string => {
     const decileBlock = p.byName
       ? `<h3>Lift by ${esc(p.byName)} decile (D01 lowest → D10 highest)</h3>
@@ -409,6 +475,19 @@ function renderReport(p: {
       )
       .join("");
     const crossPct = acc.crossings > 0 ? (100 * acc.crossingsDoubled) / acc.crossings : 0;
+    const evBlock = p.evOn
+      ? `<h3>Expected value — buy at close, hold ${p.horizon} min (close-to-close), cost ${p.cost}%/round-trip</h3>
+    <p>Overall EV of a random near-ATM hold: <b>${summarizeOutcomes(acc.evAll).meanPct.toFixed(3)}%</b>. <b>meanPct is the EV — ≤ 0 means not tradeable, however high the lift.</b></p>
+    <table><thead><tr><th>bucket</th><th>holds</th><th>mean (EV)</th><th>median</th><th>win-rate</th><th>p10</th><th>p90</th></tr></thead><tbody>${SCORE_BAND_ORDER.filter(
+      (b) => acc.evByScore.has(b),
+    )
+      .map((b) => evStatRow(`score ${b}`, summarizeOutcomes(acc.evByScore.get(b) as number[])))
+      .join("")}${
+        p.byName
+          ? decileOutcomes(acc.evObs).map((r) => evStatRow(`${p.byName} ${r.label}`, r.stats)).join("")
+          : ""
+      }</tbody></table>`
+      : "";
     return `
     <h2>${name}</h2>
     <p>Base rate: <b>${acc.lift.baseRatePct().toFixed(2)}%</b> of near-ATM option minutes are followed by a ×${p.multiple} premium move within ${p.horizon} minutes${p.compressionOn ? " (compression filter on)" : ""}.</p>
@@ -422,7 +501,8 @@ function renderReport(p: {
       <li>Score-crossings observed: <b>${acc.crossings}</b>, of which <b>${crossPct.toFixed(1)}%</b> were followed by a doubling.</li>
       <li>Average capture of the ideal trough→peak move: <b>${(100 * acc.capture.mean()).toFixed(1)}%</b> (crossing arrives ~${acc.leadMinutes.mean().toFixed(1)} min after the trough).</li>
       <li>Average giveback at the fading glyph: <b>${(100 * acc.fadingGiveback.mean()).toFixed(1)}%</b> of the favorable move.</li>
-    </ul>`;
+    </ul>
+    ${evBlock}`;
   };
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(p.underlying)} — premium-expansion analysis</title>
   <style>

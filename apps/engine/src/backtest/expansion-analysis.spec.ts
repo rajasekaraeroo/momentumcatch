@@ -3,11 +3,13 @@ import {
   captureRatio,
   ComponentSeparation,
   decileLift,
+  decileOutcomes,
   labelDoublings,
   LiftTable,
   RunningMean,
   scoreBand,
   SCORE_BAND_ORDER,
+  summarizeOutcomes,
 } from "./expansion-analysis";
 
 describe("labelDoublings (forward answer key, no look-ahead into the indicator)", () => {
@@ -133,6 +135,44 @@ describe("decileLift (lift by decile of an arbitrary reading)", () => {
   });
   it("returns nothing for an empty sample", () => {
     expect(decileLift([])).toEqual([]);
+  });
+});
+
+describe("summarizeOutcomes (full return distribution — the EV)", () => {
+  it("computes mean, median, win-rate and tails", () => {
+    // +10, +10, +10, -20, -20 (as fractions) → mean = -2%
+    const s = summarizeOutcomes([0.1, 0.1, 0.1, -0.2, -0.2]);
+    expect(s.n).toBe(5);
+    expect(s.meanPct).toBeCloseTo(-2, 5);
+    expect(s.medianPct).toBeCloseTo(10, 5);
+    expect(s.winRatePct).toBeCloseTo(60, 5);
+  });
+  it("shows a positive EV can hide behind a low win-rate (and vice-versa)", () => {
+    // 90 small losers, 10 big winners → high hit-loss but positive EV
+    const rets = [...Array(90).fill(-0.02), ...Array(10).fill(0.5)];
+    const s = summarizeOutcomes(rets);
+    expect(s.winRatePct).toBeCloseTo(10, 5); // only 10% win...
+    expect(s.meanPct).toBeGreaterThan(0); // ...yet EV is positive
+  });
+  it("is all zeros for an empty sample", () => {
+    expect(summarizeOutcomes([])).toEqual({
+      n: 0, meanPct: 0, medianPct: 0, winRatePct: 0, p10Pct: 0, p90Pct: 0,
+    });
+  });
+});
+
+describe("decileOutcomes (EV by decile of a reading)", () => {
+  it("reports the EV of each decile, high values in D10", () => {
+    // value predicts return: high value → +, low value → −
+    const obs = Array.from({ length: 100 }, (_, i) => ({ value: i, ret: i >= 50 ? 0.1 : -0.1 }));
+    const rows = decileOutcomes(obs);
+    expect(rows).toHaveLength(10);
+    expect(rows[9]?.label).toBe("D10");
+    expect(rows[9]?.stats.meanPct).toBeCloseTo(10, 5); // top decile all winners
+    expect(rows[0]?.stats.meanPct).toBeCloseTo(-10, 5); // bottom decile all losers
+  });
+  it("returns nothing for an empty sample", () => {
+    expect(decileOutcomes([])).toEqual([]);
   });
 });
 

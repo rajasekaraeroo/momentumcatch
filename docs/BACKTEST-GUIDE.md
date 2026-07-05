@@ -496,6 +496,15 @@ Two optional flags let you look past the composite score:
 - `--cutoff 15:00` — **end the daily window early** (default 15:35 = full
   session). Use `15:00` to drop the last half hour, where expiry-day premiums
   decaying toward zero produce large but untradeable percentage blips.
+- `--ev [--cost 2]` — **expected-value tables.** Everything above measures only
+  how *often* the premium pops; this measures the **full outcome** of buying at
+  the close and holding to the horizon — winners *and* losers together. The
+  `mean (EV)` column is the answer: **if it's ≤ 0, that bucket loses money on
+  average no matter how high its lift.** `--cost 2` subtracts a 2% round-trip
+  cost from every hold (spread + slippage), so you can see EV after a realistic
+  friction assumption. Read the top OI decile's `mean (EV)` in the **holdout**:
+  positive after cost, on more than one instrument, is the only thing that
+  would justify going further.
 
 Example — is a rising open-interest reading, during compression, followed by a
 50% move more than chance, **and does it hold in the holdout**?

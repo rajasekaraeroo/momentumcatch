@@ -192,6 +192,59 @@ export function decileLift(obs: { value: number; doubled: boolean }[]): LiftRow[
   return table.rows(order);
 }
 
+/**
+ * Full forward-outcome distribution of a set of long-premium holds (buy the
+ * option at the minute's close, mark out `horizon` minutes later). Unlike the
+ * lift tables — which only count the winning ×N tail — this includes the
+ * losers, so `meanPct` is the actual expected value. A bucket whose meanPct is
+ * ≤ 0 is not tradeable no matter how high its lift.
+ */
+export interface OutcomeStats {
+  n: number;
+  meanPct: number; // expected value — the number that decides tradeability
+  medianPct: number;
+  winRatePct: number; // share of holds with a positive return
+  p10Pct: number;
+  p90Pct: number;
+}
+
+export function summarizeOutcomes(returns: number[]): OutcomeStats {
+  const n = returns.length;
+  if (n === 0) return { n: 0, meanPct: 0, medianPct: 0, winRatePct: 0, p10Pct: 0, p90Pct: 0 };
+  const sorted = [...returns].sort((a, b) => a - b);
+  const mean = returns.reduce((a, b) => a + b, 0) / n;
+  const q = (p: number): number =>
+    sorted[Math.min(n - 1, Math.max(0, Math.floor(p * (n - 1))))] as number;
+  const wins = returns.reduce((a, r) => a + (r > 0 ? 1 : 0), 0);
+  return {
+    n,
+    meanPct: 100 * mean,
+    medianPct: 100 * q(0.5),
+    winRatePct: (100 * wins) / n,
+    p10Pct: 100 * q(0.1),
+    p90Pct: 100 * q(0.9),
+  };
+}
+
+/** expected value by decile of a reading (D01 low → D10 high) */
+export function decileOutcomes(
+  obs: { value: number; ret: number }[],
+): { label: string; stats: OutcomeStats }[] {
+  const n = obs.length;
+  if (n === 0) return [];
+  const sorted = [...obs].sort((a, b) => a.value - b.value);
+  const buckets = new Map<string, number[]>();
+  sorted.forEach((o, i) => {
+    const label = `D${String(Math.min(9, Math.floor((i / n) * 10)) + 1).padStart(2, "0")}`;
+    const arr = buckets.get(label) ?? [];
+    arr.push(o.ret);
+    buckets.set(label, arr);
+  });
+  return Array.from({ length: 10 }, (_, i) => `D${String(i + 1).padStart(2, "0")}`)
+    .filter((l) => buckets.has(l))
+    .map((label) => ({ label, stats: summarizeOutcomes(buckets.get(label) as number[]) }));
+}
+
 /** running mean of a stream of numbers (for averaging capture/lead/giveback) */
 export class RunningMean {
   private n = 0;
